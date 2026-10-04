@@ -32,6 +32,9 @@ ${JSON.stringify(currentAdjustments, null, 2)}
 O usuário solicitou uma REVISÃO/REANÁLISE com a seguinte instrução:
 "${userFeedback || 'Refaça a análise com novo equilíbrio'}"
 
+DIRETRIZES DE EQUILÍBRIO DE COR:
+- Evite amarelamento excessivo. Se a foto parecer amarelada ou o usuário reclamar de tons quentes/amarelados, reduza a temperature (valores negativos como -50 a -200) e preserve brancos neutros e tons de pele naturais sem saturação excessiva.
+
 Retorne o novo JSON no mesmo formato estrito com "recommended_edit", "reasoning_summary", "confidence", etc.`
 
     const response = await generateWithFallback(ai, {

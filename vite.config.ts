@@ -3,7 +3,14 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { GoogleGenAI } from '@google/genai'
 
-const CANDIDATE_MODELS = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest']
+const CANDIDATE_MODELS = [
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+  'gemini-flash-latest'
+]
 
 async function generateWithFallback(ai: GoogleGenAI, requestConfig: any) {
   let lastErr = null
@@ -116,8 +123,13 @@ DIRETRIZES FUNDAMENTAIS:
    - vibrance: entre -50 e +50
    - sharpness: entre 0 e 100
    - noise_reduction: entre 0 e 100
-3. ESTILO SOLICITADO: "${styleProfile || 'natural'}"
-4. INSTRUÇÃO DO USUÁRIO: "${customInstruction || 'Edição equilibrada, realista e refinada'}"
+3. BALANÇO DE BRANCO E TONS NATURAIS (EVITAR AMARELAMENTO):
+   - Mantenha brancos limpos e cores fiéis.
+   - CUIDADO COM TONS AMARELADOS: Fotos de celulares e ambientes internos frequentemente já possuem excesso de calor/amarelo. EVITE sugerir valores positivos de temperature se a cena já for quente ou tiver tons amarelados.
+   - Se a foto tiver predominância amarela, iluminação de tungstênio ou pele amarelada, use valores LEVEMENTE NEGATIVOS de temperature (ex: -40 a -150) para neutralizar o cast e trazer brancos limpos e pele natural.
+   - Para fotos equilibradas normais, prefira temperature neutro (entre -30 e +30).
+4. ESTILO SOLICITADO: "${styleProfile || 'natural'}"
+5. INSTRUÇÃO DO USUÁRIO: "${customInstruction || 'Edição equilibrada, realista e refinada'}"
 
 Responda ESTRITAMENTE em formato JSON com o seguinte schema:
 {
@@ -193,11 +205,13 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               res.end(JSON.stringify({ success: true, analysis: parsed }))
             } catch (err: any) {
               console.error('Erro na análise Gemini:', err)
-              res.statusCode = 500
+              const isQuota = err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED') || err.status === 429
+              res.statusCode = isQuota ? 429 : 500
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ 
                 success: false, 
-                error: err.message || 'Erro durante a análise com Gemini' 
+                error: err.message || 'Erro durante a análise com Gemini',
+                isQuota
               }))
             }
           })
@@ -229,6 +243,9 @@ ${JSON.stringify(currentAdjustments, null, 2)}
 
 O usuário solicitou uma REVISÃO/REANÁLISE com a seguinte instrução:
 "${userFeedback || 'Refaça a análise com novo equilíbrio'}"
+
+DIRETRIZES DE EQUILÍBRIO DE COR:
+- Evite amarelamento excessivo. Se a foto parecer amarelada ou o usuário reclamar de tons quentes/amarelados, reduza a temperature (valores negativos como -50 a -200) e preserve brancos neutros e tons de pele naturais sem saturação excessiva.
 
 Retorne o novo JSON no mesmo formato estrito com "recommended_edit", "reasoning_summary", "confidence", etc.`
 
@@ -265,9 +282,10 @@ Retorne o novo JSON no mesmo formato estrito com "recommended_edit", "reasoning_
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify({ success: true, analysis: parsed }))
             } catch (err: any) {
-              res.statusCode = 500
+              const isQuota = err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED') || err.status === 429
+              res.statusCode = isQuota ? 429 : 500
               res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ success: false, error: err.message }))
+              res.end(JSON.stringify({ success: false, error: err.message, isQuota }))
             }
           })
           return

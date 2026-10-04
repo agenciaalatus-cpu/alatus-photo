@@ -84,11 +84,12 @@ export class ImageEditingService {
     const blacks = adjustments.blacks / 100         // -1 to 1
 
     // White balance / Kelvin shift
-    // Positive temperature adds warm red/amber and lowers blue; negative adds cool blue
+    // True photographic Kelvin balance: adjusts Red vs Blue balance smoothly without polluting Green
+    // (Green/Magenta tint balance is handled independently by the tint adjustment)
     const tempShift = adjustments.temperature / 1000 // -1 to 1
-    const rTempMul = 1 + (tempShift > 0 ? tempShift * 0.35 : tempShift * 0.15)
-    const bTempMul = 1 - (tempShift > 0 ? tempShift * 0.3 : tempShift * -0.35)
-    const gTempMul = 1 + (tempShift > 0 ? tempShift * 0.08 : 0)
+    const rTempMul = 1 + (tempShift > 0 ? tempShift * 0.18 : tempShift * 0.14)
+    const bTempMul = 1 - (tempShift > 0 ? tempShift * 0.18 : tempShift * -0.16)
+    const gTempMul = 1
 
     // Tint (green vs magenta)
     const tintShift = adjustments.tint / 100 // -0.5 to 0.5

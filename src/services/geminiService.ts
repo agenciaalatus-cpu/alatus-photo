@@ -136,37 +136,31 @@ export class GeminiService {
       const data = await response.json()
 
       if (!response.ok) {
-        // If no API key is configured, fallback to high-fidelity heuristic simulation
-        if (data.error === 'NO_API_KEY') {
-          if (imgElement) {
-            const fallbackAnalysis = await analyzeImageLocally(imgElement, styleProfile, customInstruction)
-            return fallbackAnalysis
+        // If quota exhausted (429), server error (500), or no API key, gracefully fallback to local intelligent engine
+        if (imgElement) {
+          console.warn('API Gemini retornou status não-200. Ativando motor de edição local heurístico:', data.error || response.status)
+          const fallbackAnalysis = await analyzeImageLocally(imgElement, styleProfile, customInstruction)
+          if (data.isQuota || data.error?.includes('RESOURCE_EXHAUSTED') || data.error?.includes('quota') || response.status === 429) {
+            fallbackAnalysis.reasoning_summary = `[Modo Heurístico Inteligente]: ${fallbackAnalysis.reasoning_summary}`
           }
+          return fallbackAnalysis
+        }
+
+        if (data.error === 'NO_API_KEY') {
           throw new Error('Chave Gemini API não informada. Configure em Configurações.')
         }
 
-        // Handle rate limits (429) with exponential backoff
-        if ((response.status === 429 || data.error?.includes('RESOURCE_EXHAUSTED')) && retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1500
-          await new Promise((r) => setTimeout(r, delay))
-          return this.analyzePhoto(file, options, retryCount + 1)
-        }
-
-        throw new Error(data.error || 'Erro desconhecido na análise da imagem')
+        throw new Error(data.error || 'Erro na análise da imagem pelo Gemini')
       }
 
       // Validate the structured JSON
       return validateAIAnalysis(data.analysis)
     } catch (err: any) {
-      // If server error or offline and we have an image element, fallback gracefully
-      if (imgElement && (err.message?.includes('Chave Gemini') || err.message?.includes('Failed to fetch') || err.message?.includes('NO_API_KEY'))) {
+      // If error occurs and we have an image element, fallback gracefully so editing is never blocked
+      if (imgElement) {
+        console.warn('Erro na requisição Gemini, fallback para motor heurístico:', err.message)
         const local = await analyzeImageLocally(imgElement, styleProfile, customInstruction)
         return local
-      }
-
-      if (retryCount < 2 && !err.message?.includes('Chave')) {
-        await new Promise((r) => setTimeout(r, 1200))
-        return this.analyzePhoto(file, options, retryCount + 1)
       }
 
       throw err
@@ -201,48 +195,66 @@ export class GeminiService {
       const data = await response.json()
 
       if (!response.ok) {
-        if (data.error === 'NO_API_KEY' && imgElement) {
-          // Adjust locally based on feedback
-          const feedbackLower = userFeedback.toLowerCase()
-          const updated = { ...currentAdjustments }
-
-          if (feedbackLower.includes('cinemat') || feedbackLower.includes('filme')) {
-            updated.contrast += 8
-            updated.shadows += 6
-            updated.temperature += 60
-            updated.vibrance += 5
-          } else if (feedbackLower.includes('natural') || feedbackLower.includes('menos')) {
-            updated.contrast = Math.round(updated.contrast * 0.6)
-            updated.saturation = Math.round(updated.saturation * 0.7)
-            updated.vibrance = Math.round(updated.vibrance * 0.7)
-            updated.sharpness = Math.round(updated.sharpness * 0.8)
-          } else if (feedbackLower.includes('quente') || feedbackLower.includes('dourad')) {
-            updated.temperature += 150
-          } else if (feedbackLower.includes('fria') || feedbackLower.includes('azul')) {
-            updated.temperature -= 150
-          } else if (feedbackLower.includes('clara') || feedbackLower.includes('exposi')) {
-            updated.exposure += 0.25
-          }
-
-          return {
-            image_type: 'portrait',
-            environment: 'indoor',
-            lighting: { quality: 'soft', exposure: 0, temperature: 'neutral' },
-            subject: { people: true, skin_visible: true },
-            composition: { quality: 'good', crop_recommended: false, straighten_degrees: 0 },
-            recommended_edit: updated,
-            style: 'custom',
-            confidence: 0.95,
-            reasoning_summary: `Reanálise aplicada: "${userFeedback}" refinando balanço e contraste.`,
-            simulated: true
-          }
+        if (imgElement) {
+          return this.applyLocalReanalysis(currentAdjustments, userFeedback)
         }
         throw new Error(data.error || 'Erro ao reanalisar foto')
       }
 
       return validateAIAnalysis(data.analysis)
     } catch (err: any) {
+      if (imgElement) {
+        return this.applyLocalReanalysis(currentAdjustments, userFeedback)
+      }
       throw err
+    }
+  }
+
+  private static applyLocalReanalysis(
+    currentAdjustments: PhotoAdjustments,
+    userFeedback: string
+  ): AIAnalysisResult {
+    const feedbackLower = userFeedback.toLowerCase()
+    const updated = { ...currentAdjustments }
+
+    if (feedbackLower.includes('cinemat') || feedbackLower.includes('filme')) {
+      updated.contrast += 8
+      updated.shadows += 6
+      updated.temperature += 60
+      updated.vibrance += 5
+    } else if (feedbackLower.includes('natural') || feedbackLower.includes('menos')) {
+      updated.contrast = Math.round(updated.contrast * 0.6)
+      updated.saturation = Math.round(updated.saturation * 0.7)
+      updated.vibrance = Math.round(updated.vibrance * 0.7)
+      updated.sharpness = Math.round(updated.sharpness * 0.8)
+    } else if (feedbackLower.includes('amarel') || feedbackLower.includes('menos quente') || feedbackLower.includes('esfriar') || feedbackLower.includes('fria') || feedbackLower.includes('azul')) {
+      updated.temperature = Math.max(-1000, updated.temperature - 150)
+      // If still excessively warm, force into neutral/slightly cool zone
+      if (updated.temperature > 0) updated.temperature = -40
+    } else if (feedbackLower.includes('quente') || feedbackLower.includes('dourad')) {
+      updated.temperature = Math.min(1000, updated.temperature + 100)
+    } else if (feedbackLower.includes('clara') || feedbackLower.includes('exposi')) {
+      updated.exposure += 0.25
+    } else if (feedbackLower.includes('escura') || feedbackLower.includes('sub')) {
+      updated.exposure -= 0.25
+    } else if (feedbackLower.includes('nitidez') || feedbackLower.includes('nitid')) {
+      updated.sharpness = Math.min(100, updated.sharpness + 15)
+    } else {
+      updated.contrast += 4
+      updated.vibrance += 6
+    }
+
+    return {
+      image_type: 'portrait',
+      environment: 'indoor',
+      lighting: { quality: 'soft', exposure: 0, temperature: 'neutral' },
+      subject: { people: true, skin_visible: true },
+      composition: { quality: 'good', crop_recommended: false, straighten_degrees: 0 },
+      recommended_edit: updated,
+      style: 'custom',
+      confidence: 0.95,
+      reasoning_summary: `Reanálise aplicada: "${userFeedback}" refinando balanço e contraste.`,
+      simulated: true
     }
   }
 }

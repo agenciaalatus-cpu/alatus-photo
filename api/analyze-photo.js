@@ -51,8 +51,13 @@ DIRETRIZES FUNDAMENTAIS:
    - vibrance: entre -50 e +50
    - sharpness: entre 0 e 100
    - noise_reduction: entre 0 e 100
-3. ESTILO SOLICITADO: "${styleProfile || 'natural'}"
-4. INSTRUÇÃO DO USUÁRIO: "${customInstruction || 'Edição equilibrada, realista e refinada'}"
+3. BALANÇO DE BRANCO E TONS NATURAIS (EVITAR AMARELAMENTO):
+   - Mantenha brancos limpos e cores fiéis.
+   - CUIDADO COM TONS AMARELADOS: Fotos de celulares e ambientes internos frequentemente já possuem excesso de calor/amarelo. EVITE sugerir valores positivos de temperature se a cena já for quente ou tiver tons amarelados.
+   - Se a foto tiver predominância amarela, iluminação de tungstênio ou pele amarelada, use valores LEVEMENTE NEGATIVOS de temperature (ex: -40 a -150) para neutralizar o cast e trazer brancos limpos e pele natural.
+   - Para fotos equilibradas normais, prefira temperature neutro (entre -30 e +30).
+4. ESTILO SOLICITADO: "${styleProfile || 'natural'}"
+5. INSTRUÇÃO DO USUÁRIO: "${customInstruction || 'Edição equilibrada, realista e refinada'}"
 
 Responda ESTRITAMENTE em formato JSON com o seguinte schema:
 {

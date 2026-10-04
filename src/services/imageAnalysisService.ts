@@ -161,8 +161,14 @@ export async function analyzeImageLocally(
   if (lowRatio > 0.18) shadowsAdj = Math.round(lowRatio * 100 * 0.6) // lift shadows
 
   let tempAdj = 0
-  if (isCool) tempAdj = Math.round((avgB - avgR) * 12)
-  else if (isWarm && !hasPeople) tempAdj = -Math.round((avgR - avgB) * 8)
+  if (isCool) {
+    // Gently warm cool photos, capped to avoid overshooting
+    tempAdj = Math.round(clamp((avgB - avgR) * 6, 0, 140))
+  } else if (isWarm) {
+    // Neutralize warm / yellowish casts to restore clean whites and faithful skin
+    const coolFactor = hasPeople ? 6 : 8
+    tempAdj = -Math.round(clamp((avgR - avgB) * coolFactor, 0, 180))
+  }
 
   let contrastAdj = 8
   let vibranceAdj = hasPeople ? 6 : 14
@@ -175,7 +181,7 @@ export async function analyzeImageLocally(
     contrastAdj += 10
     highlightsAdj -= 10
     shadowsAdj += 8
-    tempAdj += 80
+    tempAdj += 25
   } else if (styleProfile === 'vibrant') {
     vibranceAdj += 12
     saturationAdj += 8

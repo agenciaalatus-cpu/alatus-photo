@@ -14,6 +14,7 @@ import {
 } from './types/photo'
 import { StorageService, DEFAULT_SETTINGS } from './services/storageService'
 import { GeminiService } from './services/geminiService'
+import { analyzeImageLocally } from './services/imageAnalysisService'
 import { ImageEditingService } from './services/imageEditingService'
 import { ExportService, ExportProgress } from './services/exportService'
 import { createSamplePhotoFiles } from './utils/samplePhotos'
@@ -168,14 +169,36 @@ export function App() {
       return updatedItem
     } catch (err: any) {
       console.error(`Erro ao processar foto ${photo.filename}:`, err)
-      const errorItem: PhotoItem = {
-        ...photo,
-        status: 'error',
-        errorMessage: err.message || 'Erro durante a análise',
-        progress: 0
+      try {
+        const fallbackAnalysis = await analyzeImageLocally(img, settings.styleProfile, settings.customInstruction)
+        const adjustmentsToApply = settings.analysisOnlyMode ? { ...DEFAULT_ADJUSTMENTS } : fallbackAnalysis.recommended_edit
+        const editedUrl = ImageEditingService.generatePreviewUrl(img, adjustmentsToApply, 800)
+        const recoveredItem: PhotoItem = {
+          ...photo,
+          analysis: fallbackAnalysis,
+          userAdjustments: adjustmentsToApply,
+          editedUrl,
+          isOnlyAnalyzed: settings.analysisOnlyMode,
+          status: 'completed',
+          statusMessage: 'Concluído com ajustes heurísticos',
+          progress: 100
+        }
+        setPhotos((prev) => prev.map((p) => (p.id === photo.id ? recoveredItem : p)))
+        return recoveredItem
+      } catch (fallbackErr) {
+        let msg = err.message || 'Erro durante a análise'
+        if (msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+          msg = 'Limite temporário da cota da API Gemini.'
+        }
+        const errorItem: PhotoItem = {
+          ...photo,
+          status: 'error',
+          errorMessage: msg,
+          progress: 0
+        }
+        setPhotos((prev) => prev.map((p) => (p.id === photo.id ? errorItem : p)))
+        return errorItem
       }
-      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? errorItem : p)))
-      return errorItem
     }
   }
 
