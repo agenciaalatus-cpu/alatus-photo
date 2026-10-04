@@ -65,7 +65,12 @@ export const BatchView: React.FC<BatchViewProps> = ({
   const inProgressPhotos = photos.filter((p) => p.status === 'analyzing' || p.status === 'editing').length
   const totalBytes = photos.reduce((acc, p) => acc + p.fileSize, 0)
 
-  const progressPercent = totalPhotos > 0 ? Math.round((completedPhotos / totalPhotos) * 100) : 0
+  // Real continuous weighted progress summing active progress of each photo
+  const totalProgressSum = photos.reduce((acc, p) => {
+    if (p.status === 'completed' || p.status === 'error') return acc + 100
+    return acc + (p.progress || 0)
+  }, 0)
+  const progressPercent = totalPhotos > 0 ? Math.min(100, Math.round(totalProgressSum / totalPhotos)) : 0
 
   const filteredPhotos = photos.filter((p) => {
     if (filterStatus === 'all') return true
@@ -200,7 +205,7 @@ export const BatchView: React.FC<BatchViewProps> = ({
             {/* Visual Progress Bar */}
             <div className="w-full h-2.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden p-0.5 border border-[var(--border-color)]">
               <div
-                className="h-full bg-gradient-to-r from-[#00509E] via-[#1A6DC2] to-[#FFC72C] rounded-full transition-all duration-300"
+                className="h-full bg-gradient-to-r from-[#00509E] via-[#1A6DC2] to-[#FFC72C] rounded-full transition-all duration-150"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -214,9 +219,14 @@ export const BatchView: React.FC<BatchViewProps> = ({
                     {currentProcessingPhoto.filename}
                   </span>
                 </div>
-                <span className="px-2 py-0.5 rounded-md bg-[#00509E]/20 text-[#1A6DC2] font-semibold text-[11px] border border-[#00509E]/30 shrink-0">
-                  {currentProcessingPhoto.statusMessage || 'Analisando iluminação com Gemini...'}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-2 py-0.5 rounded-md bg-[#00509E]/20 text-[#1A6DC2] font-semibold text-[11px] border border-[#00509E]/30">
+                    {currentProcessingPhoto.statusMessage || 'Analisando iluminação com Gemini...'}
+                  </span>
+                  <span className="font-mono font-bold text-[#FFC72C] text-xs">
+                    {currentProcessingPhoto.progress}%
+                  </span>
+                </div>
               </div>
             )}
           </div>

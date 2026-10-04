@@ -97,18 +97,23 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
 
         {/* Status Overlay when processing */}
         {(photo.status === 'analyzing' || photo.status === 'editing') && (
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center space-y-2">
+          <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center space-y-2.5">
             <div className="w-10 h-10 rounded-full bg-[#00509E]/40 border border-[#00509E] flex items-center justify-center text-[#FFC72C] animate-ai-pulse">
               <Sparkles className="w-5 h-5 animate-spin" />
             </div>
-            <p className="text-xs font-bold text-white tracking-wide">
+            <p className="text-xs font-bold text-white tracking-wide px-2 line-clamp-2">
               {photo.statusMessage || (photo.status === 'analyzing' ? 'Analisando iluminação...' : 'Aplicando ajustes finos...')}
             </p>
-            <div className="w-3/4 h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-[#00509E] to-[#FFC72C] transition-all duration-300"
-                style={{ width: `${photo.progress}%` }}
-              />
+            <div className="w-4/5 flex items-center gap-2">
+              <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden p-0.5 border border-white/10">
+                <div 
+                  className="h-full bg-gradient-to-r from-[#00509E] via-[#1A6DC2] to-[#FFC72C] rounded-full transition-all duration-150"
+                  style={{ width: `${photo.progress}%` }}
+                />
+              </div>
+              <span className="text-[11px] font-mono font-bold text-[#FFC72C] shrink-0">
+                {photo.progress}%
+              </span>
             </div>
           </div>
         )}

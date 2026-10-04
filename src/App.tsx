@@ -97,18 +97,23 @@ export function App() {
     await handleFilesSelected(sampleFiles)
   }
 
-  // Process a single photo item
-  const processSinglePhoto = async (photo: PhotoItem): Promise<PhotoItem> => {
-    // 1. Mark as analyzing
+  // Helper to safely update a single photo's status and progress
+  const updatePhoto = (id: string, updates: Partial<PhotoItem>) => {
     setPhotos((prev) =>
-      prev.map((p) =>
-        p.id === photo.id
-          ? { ...p, status: 'analyzing', statusMessage: 'Analisando iluminação com Gemini...', progress: 25 }
-          : p
-      )
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
     )
+  }
 
-    // Load Image Element for analysis & canvas rendering
+  // Process a single photo item with continuous, realistic progress tracking
+  const processSinglePhoto = async (photo: PhotoItem): Promise<PhotoItem> => {
+    let currentProgress = 5
+    updatePhoto(photo.id, {
+      status: 'analyzing',
+      statusMessage: 'Carregando e decodificando imagem...',
+      progress: currentProgress
+    })
+
+    // 1. Load Image Element for analysis & canvas rendering
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.src = photo.originalUrl
@@ -117,8 +122,41 @@ export function App() {
       img.onerror = () => resolve(false)
     })
 
+    currentProgress = 15
+    updatePhoto(photo.id, {
+      statusMessage: 'Iniciando análise com IA...',
+      progress: currentProgress
+    })
+
+    // Continuous ticker that smoothly advances progress during Gemini's network latency
+    let tickerInterval: any = null
+    tickerInterval = setInterval(() => {
+      if (isCancelledRef.current) {
+        clearInterval(tickerInterval)
+        return
+      }
+      if (currentProgress < 78) {
+        const step = currentProgress < 35 ? 3 : currentProgress < 58 ? 2 : 1
+        currentProgress = Math.min(78, currentProgress + step)
+
+        let msg = 'Analisando iluminação e sombras com Gemini...'
+        if (currentProgress >= 32 && currentProgress < 50) {
+          msg = 'Avaliando contraste e balanço de branco...'
+        } else if (currentProgress >= 50 && currentProgress < 68) {
+          msg = 'Calculando tons de pele e saturação...'
+        } else if (currentProgress >= 68) {
+          msg = 'Finalizando diagnóstico fotográfico...'
+        }
+
+        updatePhoto(photo.id, {
+          progress: currentProgress,
+          statusMessage: msg
+        })
+      }
+    }, 130)
+
     try {
-      // 2. Call Gemini
+      // 2. Call Gemini API
       const analysis = await GeminiService.analyzePhoto(photo.file, {
         apiKey: settings.geminiApiKey,
         styleProfile: settings.styleProfile,
@@ -126,33 +164,41 @@ export function App() {
         imgElement: img
       })
 
+      if (tickerInterval) clearInterval(tickerInterval)
+
       // Check if user cancelled while waiting
       if (isCancelledRef.current) {
         return { ...photo, status: 'waiting', progress: 0 }
       }
 
-      // 3. Mark as editing
-      setPhotos((prev) =>
-        prev.map((p) =>
-          p.id === photo.id
-            ? {
-                ...p,
-                analysis,
-                status: 'editing',
-                statusMessage: 'Aplicando ajustes finos calculados...',
-                progress: 70
-              }
-            : p
-        )
-      )
+      // 3. Mark as editing (84%)
+      currentProgress = 84
+      updatePhoto(photo.id, {
+        analysis,
+        status: 'editing',
+        statusMessage: 'Aplicando correções de balanço e exposição...',
+        progress: currentProgress
+      })
+
+      // Small async yield to allow UI repaint
+      await new Promise((r) => setTimeout(r, 50))
 
       // 4. If analysis-only mode, don't apply edits
       const adjustmentsToApply = settings.analysisOnlyMode
         ? { ...DEFAULT_ADJUSTMENTS }
         : analysis.recommended_edit
 
-      // 5. Render preview URL non-destructively
+      // 5. Render preview URL non-destructively (94%)
+      currentProgress = 94
+      updatePhoto(photo.id, {
+        status: 'editing',
+        statusMessage: 'Renderizando nitidez e curvas fotográficas...',
+        progress: currentProgress
+      })
+
       const editedUrl = ImageEditingService.generatePreviewUrl(img, adjustmentsToApply, 800)
+
+      await new Promise((r) => setTimeout(r, 40))
 
       const updatedItem: PhotoItem = {
         ...photo,
@@ -168,8 +214,15 @@ export function App() {
       setPhotos((prev) => prev.map((p) => (p.id === photo.id ? updatedItem : p)))
       return updatedItem
     } catch (err: any) {
+      if (tickerInterval) clearInterval(tickerInterval)
       console.error(`Erro ao processar foto ${photo.filename}:`, err)
       try {
+        currentProgress = 85
+        updatePhoto(photo.id, {
+          status: 'editing',
+          statusMessage: 'Calculando ajustes otimizados locais...',
+          progress: currentProgress
+        })
         const fallbackAnalysis = await analyzeImageLocally(img, settings.styleProfile, settings.customInstruction)
         const adjustmentsToApply = settings.analysisOnlyMode ? { ...DEFAULT_ADJUSTMENTS } : fallbackAnalysis.recommended_edit
         const editedUrl = ImageEditingService.generatePreviewUrl(img, adjustmentsToApply, 800)
@@ -390,7 +443,7 @@ export function App() {
             isProcessing={isProcessing}
             isExporting={isExporting}
             exportProgress={exportProgress}
-            currentProcessingPhoto={currentProcessingPhoto}
+            currentProcessingPhoto={photos.find((p) => p.id === currentProcessingPhoto?.id) || currentProcessingPhoto}
             settings={settings}
             onStartProcessing={handleStartProcessing}
             onCancelProcessing={handleCancelProcessing}
