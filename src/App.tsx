@@ -464,6 +464,7 @@ export function App() {
       {/* Detail Photo Inspector & Split Comparison Modal */}
       <DetailEditorModal
         photo={selectedPhoto}
+        photos={photos}
         isOpen={isEditorOpen}
         onClose={() => {
           setIsEditorOpen(false)
@@ -471,6 +472,7 @@ export function App() {
         }}
         settings={settings}
         onUpdatePhotoAdjustments={handleUpdatePhotoAdjustments}
+        onNavigatePhoto={(p) => setSelectedPhoto(p)}
       />
 
       {/* Settings Modal */}

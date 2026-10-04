@@ -16,7 +16,9 @@ import {
   Layers, 
   Send, 
   Loader2,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { PhotoItem, PhotoAdjustments, SAFE_BOUNDS, DEFAULT_ADJUSTMENTS, AppSettings } from '../types/photo'
 import { ImageEditingService } from '../services/imageEditingService'
@@ -26,18 +28,22 @@ import { formatSigned } from '../utils/formatters'
 
 interface DetailEditorModalProps {
   photo: PhotoItem | null
+  photos?: PhotoItem[]
   isOpen: boolean
   onClose: () => void
   settings: AppSettings
   onUpdatePhotoAdjustments: (photoId: string, newAdjustments: PhotoAdjustments, newAnalysis?: any) => void
+  onNavigatePhoto?: (photo: PhotoItem) => void
 }
 
 export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
   photo,
+  photos,
   isOpen,
   onClose,
   settings,
-  onUpdatePhotoAdjustments
+  onUpdatePhotoAdjustments,
+  onNavigatePhoto
 }) => {
   if (!isOpen || !photo) return null
 
@@ -50,6 +56,48 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
   const [reanalyzePrompt, setReanalyzePrompt] = useState('')
   const [isReanalyzing, setIsReanalyzing] = useState(false)
   const [reanalyzeSuccess, setReanalyzeSuccess] = useState(false)
+
+  // Photos indexing for navigation
+  const currentIndex = photos && photo ? photos.findIndex((p) => p.id === photo.id) : -1
+  const hasPrev = currentIndex > 0
+  const hasNext = Boolean(photos && currentIndex >= 0 && currentIndex < photos.length - 1)
+
+  const handlePrevPhoto = () => {
+    if (hasPrev && photos && onNavigatePhoto) {
+      onNavigatePhoto(photos[currentIndex - 1])
+    }
+  }
+
+  const handleNextPhoto = () => {
+    if (hasNext && photos && onNavigatePhoto) {
+      onNavigatePhoto(photos[currentIndex + 1])
+    }
+  }
+
+  // Keyboard navigation & shortcuts (Lightroom style)
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      if (e.key === 'Escape') {
+        onClose()
+      } else if (e.key === '\\') {
+        setSplitPos((pos) => (pos > 50 ? 0 : 100))
+      } else if (e.key === 'z' || e.key === 'Z') {
+        setZoomLevel((z) => (z > 1 ? 1 : 2))
+      } else if (e.key === 'ArrowRight') {
+        handleNextPhoto()
+      } else if (e.key === 'ArrowLeft') {
+        handlePrevPhoto()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, photo, photos, currentIndex, hasPrev, hasNext, onClose])
 
   // Canvas refs
   const editedCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -101,15 +149,16 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
     onUpdatePhotoAdjustments(photo.id, reset)
   }
 
-  const handleReanalyze = async () => {
-    if (!reanalyzePrompt.trim()) return
+  const handleReanalyze = async (customText?: string) => {
+    const textToUse = customText || reanalyzePrompt.trim()
+    if (!textToUse) return
     setIsReanalyzing(true)
     setReanalyzeSuccess(false)
     try {
       const res = await GeminiService.reanalyzePhoto(
         photo.file,
         adjustments,
-        reanalyzePrompt.trim(),
+        textToUse,
         settings.geminiApiKey,
         imgElementRef.current || undefined
       )
@@ -142,69 +191,106 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
     )
   }
 
+  // Tab indicator dots
+  const hasLightChanges = adjustments.exposure !== 0 || adjustments.contrast !== 0 || adjustments.highlights !== 0 || adjustments.shadows !== 0 || adjustments.whites !== 0 || adjustments.blacks !== 0
+  const hasColorChanges = adjustments.temperature !== 0 || adjustments.tint !== 0 || adjustments.saturation !== 0 || adjustments.vibrance !== 0
+  const hasDetailChanges = adjustments.sharpness > 0 || adjustments.noise_reduction > 0
+
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col overflow-hidden animate-fade-in"
+      className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col overflow-hidden animate-fade-in"
       onMouseUp={() => setIsDraggingSplit(false)}
       onMouseLeave={() => setIsDraggingSplit(false)}
     >
       {/* Top Header */}
-      <div className="h-14 border-b border-[var(--border-color)] bg-[var(--bg-surface)] px-6 flex items-center justify-between shrink-0">
+      <div className="h-14 border-b border-[var(--border-color)] bg-[var(--bg-surface)] px-4 sm:px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[#00509E]/20 text-[#00509E]">
+          <div className="p-2 rounded-xl bg-[#00509E]/20 text-[#00509E] border border-[#00509E]/30">
             <Sparkles className="w-4 h-4 text-[#FFC72C]" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)] truncate max-w-[280px] sm:max-w-md">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] truncate max-w-[200px] sm:max-w-xs font-heading">
               {photo.filename}
             </h3>
-            <div className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+            <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] font-mono">
               <span>{photo.originalWidth} × {photo.originalHeight}</span>
               <span>•</span>
               <span className="capitalize">{photo.analysis?.image_type || 'Fotografia'}</span>
             </div>
           </div>
+
+          {/* Photo Navigation (Prev / Next) */}
+          {photos && photos.length > 1 && (
+            <div className="hidden sm:flex items-center gap-1 ml-4 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)]">
+              <button
+                onClick={handlePrevPhoto}
+                disabled={!hasPrev}
+                className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] disabled:opacity-30 transition-all"
+                title="Foto anterior (Seta ←)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-[11px] font-mono px-2 font-bold text-[var(--text-primary)]">
+                {currentIndex + 1} de {photos.length}
+              </span>
+              <button
+                onClick={handleNextPhoto}
+                disabled={!hasNext}
+                className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] disabled:opacity-30 transition-all"
+                title="Próxima foto (Seta →)"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Center Comparison & Zoom Tools */}
-        <div className="hidden md:flex items-center gap-1.5 bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border-color)]">
-          <button
-            onClick={() => setZoomLevel((z) => (z > 1 ? z - 0.5 : 1))}
-            className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
-            title="Reduzir zoom"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <span className="text-[11px] font-mono px-1 font-semibold text-[var(--text-primary)]">
-            {Math.round(zoomLevel * 100)}%
-          </span>
-          <button
-            onClick={() => setZoomLevel((z) => (z < 2.5 ? z + 0.5 : 2.5))}
-            className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
-            title="Aumentar zoom"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <div className="w-[1px] h-4 bg-[var(--border-color)] mx-1" />
-          <button
-            onClick={() => setSplitPos(50)}
-            className="px-2 py-1 rounded-lg text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            50/50 Split
-          </button>
-          <button
-            onClick={() => setSplitPos(100)}
-            className="px-2 py-1 rounded-lg text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            Apenas Depois
-          </button>
+        <div className="hidden lg:flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border-color)]">
+            <button
+              onClick={() => setZoomLevel((z) => (z > 1 ? z - 0.5 : 1))}
+              className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
+              title="Reduzir zoom (Z)"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[11px] font-mono px-1 font-bold text-[var(--text-primary)]">
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              onClick={() => setZoomLevel((z) => (z < 2.5 ? z + 0.5 : 2.5))}
+              className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
+              title="Aumentar zoom (Z)"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <div className="w-[1px] h-4 bg-[var(--border-color)] mx-1" />
+            <button
+              onClick={() => setSplitPos(50)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${splitPos === 50 ? 'bg-[#00509E] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              50/50 Split
+            </button>
+            <button
+              onClick={() => setSplitPos(100)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${splitPos === 100 ? 'bg-[#00509E] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              title="Exibir apenas foto revelada"
+            >
+              Apenas Revelada
+            </button>
+          </div>
+
+          <div className="text-[10px] text-[var(--text-muted)] font-mono bg-[var(--bg-subtle)] px-2.5 py-1 rounded-lg border border-[var(--border-color)]">
+            Atalho: <kbd className="px-1 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-primary)] font-bold">\</kbd> Antes/Depois
+          </div>
         </div>
 
         {/* Top Right Action Buttons */}
         <div className="flex items-center gap-2">
           <button
             onClick={handleDownloadSingle}
-            className="px-3 py-1.5 rounded-xl bg-[#00509E] hover:bg-[#003F7E] text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+            className="px-3.5 py-1.5 rounded-xl bg-[#00509E] hover:bg-[#1A6DC2] text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 hover:scale-105 active:scale-95"
             title="Exportar esta foto com ajustes atuais"
           >
             <Download className="w-3.5 h-3.5 text-[#FFC72C]" />
@@ -213,7 +299,8 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+            className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors hover:scale-105 active:scale-95"
+            title="Fechar (ESC)"
           >
             <X className="w-5 h-5" />
           </button>
@@ -305,56 +392,60 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
           )}
 
           {/* Adjustment Tabs */}
-          <div className="flex border-b border-[var(--border-color)] px-2 bg-[var(--bg-subtle)]/60 text-xs font-bold">
+          <div className="flex border-b border-[var(--border-color)] px-1.5 bg-[var(--bg-subtle)]/70 text-xs font-bold">
             <button
               onClick={() => setActiveTab('light')}
-              className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
+              className={`flex-1 py-3 text-center border-b-2 transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'light'
-                  ? 'border-[#00509E] text-[var(--text-primary)]'
+                  ? 'border-[#00509E] text-[var(--text-primary)] font-bold'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Luz
+              <span>Luz</span>
+              {hasLightChanges && <span className="w-1.5 h-1.5 rounded-full bg-[#FFC72C] shadow-[0_0_6px_#FFC72C]" />}
             </button>
             <button
               onClick={() => setActiveTab('color')}
-              className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
+              className={`flex-1 py-3 text-center border-b-2 transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'color'
-                  ? 'border-[#00509E] text-[var(--text-primary)]'
+                  ? 'border-[#00509E] text-[var(--text-primary)] font-bold'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Cor
+              <span>Cor</span>
+              {hasColorChanges && <span className="w-1.5 h-1.5 rounded-full bg-[#FFC72C] shadow-[0_0_6px_#FFC72C]" />}
             </button>
             <button
               onClick={() => setActiveTab('detail')}
-              className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
+              className={`flex-1 py-3 text-center border-b-2 transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'detail'
-                  ? 'border-[#00509E] text-[var(--text-primary)]'
+                  ? 'border-[#00509E] text-[var(--text-primary)] font-bold'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Detalhes
+              <span>Detalhes</span>
+              {hasDetailChanges && <span className="w-1.5 h-1.5 rounded-full bg-[#FFC72C] shadow-[0_0_6px_#FFC72C]" />}
             </button>
             <button
               onClick={() => setActiveTab('geometry')}
-              className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
+              className={`flex-1 py-3 text-center border-b-2 transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'geometry'
-                  ? 'border-[#00509E] text-[var(--text-primary)]'
+                  ? 'border-[#00509E] text-[var(--text-primary)] font-bold'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Geometria
+              <span>Geometria</span>
             </button>
             <button
               onClick={() => setActiveTab('ai')}
-              className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
+              className={`flex-1 py-3 text-center border-b-2 transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'ai'
-                  ? 'border-[#00509E] text-[#FFC72C]'
+                  ? 'border-[#00509E] text-[#FFC72C] font-bold'
                   : 'border-transparent text-[var(--text-secondary)] hover:text-[#FFC72C]'
               }`}
             >
-              Reanalisar
+              <Sparkles className="w-3 h-3 text-[#FFC72C]" />
+              <span>IA</span>
             </button>
           </div>
 
@@ -364,8 +455,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
               <div className="space-y-4">
                 {/* Exposure */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Exposição</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('exposure', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Exposição</span>
                     <span className="text-[#FFC72C] font-mono">{formatSigned(adjustments.exposure, ' EV')}</span>
                   </div>
                   <input
@@ -381,8 +476,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Contrast */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Contraste</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('contrast', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Contraste</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.contrast)}</span>
                   </div>
                   <input
@@ -398,8 +497,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Highlights */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Altas Luzes (Highlights)</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('highlights', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Altas Luzes (Highlights)</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.highlights)}</span>
                   </div>
                   <input
@@ -415,8 +518,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Shadows */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Sombras (Shadows)</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('shadows', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Sombras (Shadows)</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.shadows)}</span>
                   </div>
                   <input
@@ -432,8 +539,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Whites */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Brancos (Whites)</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('whites', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Brancos (Whites)</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.whites)}</span>
                   </div>
                   <input
@@ -449,8 +560,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Blacks */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Pretos (Blacks)</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('blacks', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Pretos (Blacks)</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.blacks)}</span>
                   </div>
                   <input
@@ -470,8 +585,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
               <div className="space-y-4">
                 {/* Temperature */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Temperatura</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('temperature', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Temperatura</span>
                     <span className="text-[#FFC72C] font-mono">{formatSigned(adjustments.temperature, ' K')}</span>
                   </div>
                   <input
@@ -487,8 +606,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Tint */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Matiz (Tint)</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('tint', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Matiz (Tint)</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.tint)}</span>
                   </div>
                   <input
@@ -504,8 +627,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Vibrance */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Vibração (Vibrance)</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('vibrance', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Vibração (Vibrance)</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.vibrance)}</span>
                   </div>
                   <input
@@ -521,8 +648,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Saturation */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Saturação</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('saturation', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Saturação</span>
                     <span className="text-[var(--text-secondary)] font-mono">{formatSigned(adjustments.saturation)}</span>
                   </div>
                   <input
@@ -542,8 +673,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
               <div className="space-y-4">
                 {/* Sharpness */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Nitidez (Sharpness)</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('sharpness', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Nitidez (Sharpness)</span>
                     <span className="text-[#FFC72C] font-mono">{adjustments.sharpness}</span>
                   </div>
                   <input
@@ -559,8 +694,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
 
                 {/* Noise Reduction */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Redução de Ruído</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('noise_reduction', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Redução de Ruído</span>
                     <span className="text-[var(--text-secondary)] font-mono">{adjustments.noise_reduction}</span>
                   </div>
                   <input
@@ -580,8 +719,12 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
               <div className="space-y-4">
                 {/* Rotation */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[var(--text-primary)]">Alinhamento / Rotação</span>
+                  <div
+                    className="flex justify-between text-xs font-semibold cursor-pointer select-none group"
+                    onDoubleClick={() => handleAdjustmentChange('rotation', 0)}
+                    title="Duplo clique para zerar"
+                  >
+                    <span className="text-[var(--text-primary)] group-hover:text-[#FFC72C] transition-colors">Alinhamento / Rotação</span>
                     <span className="text-[#FFC72C] font-mono">{formatSigned(adjustments.rotation || 0, '°')}</span>
                   </div>
                   <input
@@ -609,7 +752,7 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
                   </p>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="block text-xs font-semibold text-[var(--text-primary)]">
                     Instrução de correção para esta foto
                   </label>
@@ -620,8 +763,37 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
                     placeholder="Ex: Deixe mais natural e menos contrastada, ou quero uma aparência mais cinematográfica com sombras quentes."
                     className="w-full bg-[var(--bg-app)] border border-[var(--border-color)] rounded-xl p-3 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#00509E] transition-all resize-none"
                   />
+
+                  {/* Quick Suggestion Chips */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">
+                      Sugestões Rápidas:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: '❄️ Mais neutro / Menos amarelo', text: 'Neutralize o tom amarelado mantendo brancos limpos e pele natural.' },
+                        { label: '☀️ Mais aquecido', text: 'Aqueça suavemente a iluminação com tons dourados naturais.' },
+                        { label: '🌗 Mais contraste & sombras', text: 'Aumente o contraste dramático e aprofunde as sombras.' },
+                        { label: '👁️ Mais nitidez', text: 'Realce arestas e nitidez preservando suavidade da pele.' },
+                        { label: '✨ Revelação natural', text: 'Equilíbrio limpo, natural e sem exageros.' }
+                      ].map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setReanalyzePrompt(item.text)
+                            handleReanalyze(item.text)
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-[var(--bg-elevated)] hover:bg-[#00509E] hover:text-white border border-[var(--border-color)] text-[11px] text-[var(--text-secondary)] font-medium transition-all text-left"
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <button
-                    onClick={handleReanalyze}
+                    onClick={() => handleReanalyze()}
                     disabled={isReanalyzing || !reanalyzePrompt.trim()}
                     className="w-full py-2.5 rounded-xl bg-[#00509E] hover:bg-[#003F7E] text-white text-xs font-bold shadow-md shadow-[#00509E]/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >

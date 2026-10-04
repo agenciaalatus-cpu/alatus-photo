@@ -18,7 +18,8 @@ import {
 import { PhotoItem, AppSettings, ProcessingStatus } from '../types/photo'
 import { PhotoCard } from './PhotoCard'
 import { formatBytes } from '../utils/formatters'
-import { ExportProgress } from '../services/exportService'
+import { ExportProgress, ExportService } from '../services/exportService'
+import { Grid3X3, LayoutGrid, Maximize2 } from 'lucide-react'
 
 interface BatchViewProps {
   photos: PhotoItem[]
@@ -57,6 +58,7 @@ export const BatchView: React.FC<BatchViewProps> = ({
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [isComparingAfter, setIsComparingAfter] = useState(true)
+  const [gridDensity, setGridDensity] = useState<'compact' | 'normal' | 'large'>('normal')
 
   const totalPhotos = photos.length
   const completedPhotos = photos.filter((p) => p.status === 'completed').length
@@ -249,15 +251,15 @@ export const BatchView: React.FC<BatchViewProps> = ({
           </div>
         )}
 
-        {/* Filter and Compare Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[var(--border-color)]/60 text-xs">
+        {/* Filter, Compare and Grid Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[var(--border-color)]/60 text-xs">
           {/* Status Filter Chips */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setFilterStatus('all')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
                 filterStatus === 'all'
-                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-color)]'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-color)] shadow-sm'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -265,9 +267,9 @@ export const BatchView: React.FC<BatchViewProps> = ({
             </button>
             <button
               onClick={() => setFilterStatus('completed')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
                 filterStatus === 'completed'
-                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm'
                   : 'text-[var(--text-secondary)] hover:text-emerald-400'
               }`}
             >
@@ -276,9 +278,9 @@ export const BatchView: React.FC<BatchViewProps> = ({
             {errorPhotos > 0 && (
               <button
                 onClick={() => setFilterStatus('error')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
                   filterStatus === 'error'
-                    ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 shadow-sm'
                     : 'text-[var(--text-secondary)] hover:text-rose-400'
                 }`}
               >
@@ -287,25 +289,59 @@ export const BatchView: React.FC<BatchViewProps> = ({
             )}
           </div>
 
-          {/* Batch Compare Switch (Section 31) */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--text-secondary)] font-medium">
-              Comparação do Lote:
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsComparingAfter(!isComparingAfter)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--color-gray-border)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] transition-all shadow-sm"
-            >
-              <Eye className="w-3.5 h-3.5 text-[#FFC72C]" />
-              <span>{isComparingAfter ? 'Exibindo: EDITADA' : 'Exibindo: ORIGINAL'}</span>
-            </button>
+          <div className="flex items-center gap-3">
+            {/* Grid Density Selector */}
+            <div className="hidden sm:flex items-center p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] gap-1">
+              <button
+                onClick={() => setGridDensity('compact')}
+                className={`p-1.5 rounded-lg transition-all ${gridDensity === 'compact' ? 'bg-[#00509E] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                title="Grade Compacta (mais fotos)"
+              >
+                <Grid3X3 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setGridDensity('normal')}
+                className={`p-1.5 rounded-lg transition-all ${gridDensity === 'normal' ? 'bg-[#00509E] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                title="Grade Padrão"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setGridDensity('large')}
+                className={`p-1.5 rounded-lg transition-all ${gridDensity === 'large' ? 'bg-[#00509E] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                title="Grade Ampla (foco em detalhes)"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Batch Compare Switch (Section 31) */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsComparingAfter(!isComparingAfter)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm ${
+                  isComparingAfter 
+                    ? 'bg-[var(--bg-elevated)] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[#1A6DC2]'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-black'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5 text-[#FFC72C]" />
+                <span>{isComparingAfter ? 'Visão: EDITADAS' : 'Visão: ORIGINAIS'}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Photos Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+      {/* Photos Grid with Dynamic Density */}
+      <div className={
+        gridDensity === 'compact'
+          ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5'
+          : gridDensity === 'large'
+          ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
+          : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5'
+      }>
         {filteredPhotos.map((photo) => (
           <PhotoCard
             key={photo.id}
@@ -314,6 +350,7 @@ export const BatchView: React.FC<BatchViewProps> = ({
             onSelect={onSelectPhoto}
             onRetry={onRetryPhoto}
             onRemove={onRemovePhoto}
+            onExportSingle={(p) => ExportService.exportSinglePhoto(p, settings)}
           />
         ))}
       </div>
