@@ -8,10 +8,11 @@ import {
   Sliders, 
   Trash2, 
   Eye, 
-  Layers,
-  Sun,
-  User,
-  Download
+  Layers, 
+  Sun, 
+  User, 
+  Download,
+  Cpu
 } from 'lucide-react'
 import { PhotoItem } from '../types/photo'
 import { formatBytes, formatSigned } from '../utils/formatters'
@@ -47,35 +48,35 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-color)]">
             <Clock className="w-3 h-3" />
-            <span>Aguardando</span>
+            <span>Na fila</span>
           </span>
         )
       case 'analyzing':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00509E]/20 text-[#1A6DC2] border border-[#00509E]/40 animate-pulse">
             <Sparkles className="w-3 h-3 text-[#FFC72C] animate-spin" />
-            <span>Analisando...</span>
+            <span>Analisando</span>
           </span>
         )
       case 'editing':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFC72C]/20 text-[#FFC72C] border border-[#FFC72C]/40">
             <RotateCw className="w-3 h-3 animate-spin" />
-            <span>Editando...</span>
+            <span>Editando</span>
           </span>
         )
       case 'completed':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3 h-3" />
-            <span>Concluído</span>
+            <span>Concluída</span>
           </span>
         )
       case 'error':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
             <AlertCircle className="w-3 h-3" />
-            <span>Erro</span>
+            <span>Falhou</span>
           </span>
         )
     }
@@ -223,9 +224,15 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                 </span>
               )}
 
-              {photo.analysis.simulated && (
-                <span className="px-2 py-0.5 rounded-lg text-[9px] bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/25">
-                  Heurística
+              {photo.analysis.simulated ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30">
+                  <Cpu className="w-2.5 h-2.5" />
+                  <span>Motor Local</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] bg-[#00509E]/25 text-[#1A6DC2] font-bold border border-[#00509E]/40">
+                  <Sparkles className="w-2.5 h-2.5 text-[#FFC72C]" />
+                  <span>Gemini IA</span>
                 </span>
               )}
             </div>

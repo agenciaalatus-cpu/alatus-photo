@@ -17,6 +17,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onLoadSamples
 }) => {
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isDecoding, setIsDecoding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -31,7 +32,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setIsDragOver(false)
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
@@ -42,15 +43,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
         file.name.match(/\.(jpe?g|png|webp)$/i)
       )
       if (validFiles.length > 0) {
-        onFilesSelected(validFiles)
+        setIsDecoding(true)
+        try {
+          await onFilesSelected(validFiles)
+        } finally {
+          setIsDecoding(false)
+        }
       }
     }
   }
 
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files)
-      onFilesSelected(files)
+      setIsDecoding(true)
+      try {
+        await onFilesSelected(files)
+      } finally {
+        setIsDecoding(false)
+      }
     }
   }
 
@@ -136,22 +147,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
         />
 
         <div className="max-w-md mx-auto space-y-4">
-          <div className="w-20 h-20 mx-auto rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-primary)] group-hover:scale-110 group-hover:border-[#1A6DC2] group-hover:shadow-[0_0_25px_rgba(0,80,158,0.35)] transition-all duration-300 shadow-xl">
-            <UploadCloud className="w-10 h-10 text-[#00509E] group-hover:text-[#FFC72C] transition-colors duration-300" />
-          </div>
+          {isDecoding ? (
+            <div className="py-6 space-y-3 animate-fade-in">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-[#00509E]/20 border border-[#00509E]/40 flex items-center justify-center text-[#FFC72C] shadow-lg animate-pulse">
+                <UploadCloud className="w-8 h-8 text-[#FFC72C] animate-bounce" />
+              </div>
+              <h3 className="text-base font-bold text-[var(--text-primary)] font-heading">
+                Carregando e decodificando fotografias...
+              </h3>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Lendo dimensões originais e metadados de cor
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="w-20 h-20 mx-auto rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-primary)] group-hover:scale-110 group-hover:border-[#1A6DC2] group-hover:shadow-[0_0_25px_rgba(0,80,158,0.35)] transition-all duration-300 shadow-xl">
+                <UploadCloud className="w-10 h-10 text-[#00509E] group-hover:text-[#FFC72C] transition-colors duration-300" />
+              </div>
 
-          <div className="space-y-1.5">
-            <h3 className="text-xl font-bold text-[var(--text-primary)] font-heading">
-              Arraste suas fotos aqui
-            </h3>
-            <p className="text-xs text-[var(--text-secondary)] font-medium">
-              ou clique para selecionar do computador
-            </p>
-          </div>
+              <div className="space-y-1.5">
+                <h3 className="text-xl font-bold text-[var(--text-primary)] font-heading">
+                  Arraste suas fotos aqui
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)] font-medium">
+                  ou clique para selecionar do computador
+                </p>
+              </div>
 
-          <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto leading-relaxed">
-            Suporte para dezenas de fotografias simultâneas. A IA processará cada imagem com fidelidade cromática.
-          </p>
+              <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto leading-relaxed">
+                Suporte para dezenas de fotografias simultâneas. A IA processará cada imagem com fidelidade cromática.
+              </p>
+            </>
+          )}
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-[var(--text-muted)]">
             <span className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-color)] text-[var(--text-secondary)]">JPG</span>

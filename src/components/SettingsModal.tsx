@@ -13,7 +13,6 @@ import {
   ExternalLink,
   DollarSign,
   TrendingUp,
-  Lock,
   Cpu
 } from 'lucide-react'
 import { AppSettings, StyleProfile, UsageStats } from '../types/photo'

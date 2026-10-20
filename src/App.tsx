@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Header } from './components/Header'
 import { Dashboard } from './components/Dashboard'
 import { BatchView } from './components/BatchView'
+import { StudioEditor } from './components/StudioEditor'
+import { ExportModal } from './components/ExportModal'
 import { DetailEditorModal } from './components/DetailEditorModal'
 import { SettingsModal } from './components/SettingsModal'
 import { HistoryModal } from './components/HistoryModal'
@@ -24,11 +26,13 @@ export function App() {
   const [history, setHistory] = useState<BatchSession[]>(() => StorageService.loadHistory())
   const [photos, setPhotos] = useState<PhotoItem[]>([])
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null)
+  const [viewMode, setViewMode] = useState<'studio' | 'grid'>('studio')
 
   // Modals state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false)
@@ -99,7 +103,13 @@ export function App() {
       })
     }
 
-    setPhotos((prev) => [...prev, ...newItems])
+    setPhotos((prev) => {
+      const next = [...prev, ...newItems]
+      if (!selectedPhoto && next.length > 0) {
+        setSelectedPhoto(next[0])
+      }
+      return next
+    })
   }
 
   const handleLoadSamples = async () => {
@@ -391,7 +401,11 @@ export function App() {
     setPhotos((prev) => {
       const removed = prev.find((p) => p.id === photoId)
       if (removed?.originalUrl) URL.revokeObjectURL(removed.originalUrl)
-      return prev.filter((p) => p.id !== photoId)
+      const remaining = prev.filter((p) => p.id !== photoId)
+      if (selectedPhoto?.id === photoId) {
+        setSelectedPhoto(remaining.length > 0 ? remaining[0] : null)
+      }
+      return remaining
     })
   }
 
@@ -399,7 +413,26 @@ export function App() {
     if (confirm('Deseja realmente remover todas as fotos deste lote?')) {
       photos.forEach((p) => URL.revokeObjectURL(p.originalUrl))
       setPhotos([])
+      setSelectedPhoto(null)
+      setViewMode('studio')
     }
+  }
+
+  // Apply current photo's adjustments across all batch photos (Requirement 3)
+  const handleApplyAdjustmentsToBatch = (newAdjustments: PhotoAdjustments) => {
+    setPhotos((prev) =>
+      prev.map((p) => {
+        const img = new Image()
+        img.src = p.originalUrl
+        const updatedUrl = ImageEditingService.generatePreviewUrl(img, newAdjustments, 800)
+        return {
+          ...p,
+          userAdjustments: { ...newAdjustments },
+          editedUrl: updatedUrl,
+          lastUpdated: Date.now()
+        }
+      })
+    )
   }
 
   // Batch Export to ZIP
@@ -485,55 +518,101 @@ export function App() {
         onOpenHistory={() => setIsHistoryOpen(true)}
         onToggleTheme={handleToggleTheme}
         historyCount={history.length}
+        hasPhotos={photos.length > 0}
+        viewMode={viewMode}
+        onToggleViewMode={() => setViewMode((v) => (v === 'studio' ? 'grid' : 'studio'))}
       />
 
-      {/* Main View Area */}
-      <main className="flex-1 pb-16">
+      {/* Main View Area (Studio Editor is the primary editing workspace) */}
+      <main className="flex-1 flex flex-col overflow-hidden">
         {photos.length === 0 ? (
-          <Dashboard
-            onFilesSelected={handleFilesSelected}
-            settings={settings}
-            onUpdateSettings={handleUpdateSettings}
-            onLoadSamples={handleLoadSamples}
-          />
-        ) : (
-          <BatchView
+          <div className="pb-16 overflow-y-auto">
+            <Dashboard
+              onFilesSelected={handleFilesSelected}
+              settings={settings}
+              onUpdateSettings={handleUpdateSettings}
+              onLoadSamples={handleLoadSamples}
+            />
+          </div>
+        ) : viewMode === 'studio' ? (
+          <StudioEditor
             photos={photos}
+            selectedPhoto={selectedPhoto || photos[0]}
             isProcessing={isProcessing}
-            isExporting={isExporting}
-            exportProgress={exportProgress}
             currentProcessingPhoto={photos.find((p) => p.id === currentProcessingPhoto?.id) || currentProcessingPhoto}
             settings={settings}
+            onSelectPhoto={(photo) => setSelectedPhoto(photo)}
+            onUpdatePhotoAdjustments={handleUpdatePhotoAdjustments}
+            onApplyAdjustmentsToBatch={handleApplyAdjustmentsToBatch}
             onStartProcessing={handleStartProcessing}
             onCancelProcessing={handleCancelProcessing}
-            onExportBatch={handleExportBatch}
-            onClearBatch={handleClearBatch}
-            onSelectPhoto={(photo) => {
-              setSelectedPhoto(photo)
-              setIsEditorOpen(true)
-            }}
-            onRetryPhoto={handleRetryPhoto}
-            onRetryFailedPhotos={handleRetryFailedPhotos}
-            onRemovePhoto={handleRemovePhoto}
+            onOpenExportModal={() => setIsExportModalOpen(true)}
+            onExportSinglePhoto={(photo) => ExportService.exportSinglePhoto(photo, settings)}
+            onSwitchToGridView={() => setViewMode('grid')}
             onAddMorePhotos={handleFilesSelected}
-            onGenerateTestBatch={handleGenerateTestBatch}
+            onRemovePhoto={handleRemovePhoto}
+            onRetryPhoto={handleRetryPhoto}
+            onClearBatch={handleClearBatch}
           />
+        ) : (
+          <div className="pb-16 overflow-y-auto">
+            <BatchView
+              photos={photos}
+              isProcessing={isProcessing}
+              isExporting={isExporting}
+              exportProgress={exportProgress}
+              currentProcessingPhoto={photos.find((p) => p.id === currentProcessingPhoto?.id) || currentProcessingPhoto}
+              settings={settings}
+              onStartProcessing={handleStartProcessing}
+              onCancelProcessing={handleCancelProcessing}
+              onExportBatch={handleExportBatch}
+              onOpenExportModal={() => setIsExportModalOpen(true)}
+              onSwitchToStudioView={() => setViewMode('studio')}
+              onClearBatch={handleClearBatch}
+              onSelectPhoto={(photo) => {
+                setSelectedPhoto(photo)
+                setViewMode('studio')
+              }}
+              onRetryPhoto={handleRetryPhoto}
+              onRetryFailedPhotos={handleRetryFailedPhotos}
+              onRemovePhoto={handleRemovePhoto}
+              onAddMorePhotos={handleFilesSelected}
+              onGenerateTestBatch={handleGenerateTestBatch}
+            />
+          </div>
         )}
       </main>
 
-      {/* Detail Photo Inspector & Split Comparison Modal */}
-      <DetailEditorModal
-        photo={selectedPhoto}
+      {/* Advanced Batch Export Modal (Requirement 6) */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
         photos={photos}
-        isOpen={isEditorOpen}
-        onClose={() => {
-          setIsEditorOpen(false)
-          setSelectedPhoto(null)
-        }}
         settings={settings}
-        onUpdatePhotoAdjustments={handleUpdatePhotoAdjustments}
-        onNavigatePhoto={(p) => setSelectedPhoto(p)}
+        onUpdateSettings={handleUpdateSettings}
+        onRetryFailedPhotos={(failedIds) => {
+          setPhotos((prev) =>
+            prev.map((p) => (failedIds.includes(p.id) ? { ...p, status: 'waiting', errorMessage: undefined } : p))
+          )
+          setTimeout(() => handleStartProcessing(), 100)
+        }}
       />
+
+      {/* Detail Photo Inspector & Split Comparison Modal */}
+      {isEditorOpen && selectedPhoto && (
+        <DetailEditorModal
+          photo={selectedPhoto}
+          photos={photos}
+          isOpen={isEditorOpen}
+          onClose={() => {
+            setIsEditorOpen(false)
+            setSelectedPhoto(null)
+          }}
+          settings={settings}
+          onUpdatePhotoAdjustments={handleUpdatePhotoAdjustments}
+          onNavigatePhoto={(p) => setSelectedPhoto(p)}
+        />
+      )}
 
       {/* Settings Modal */}
       <SettingsModal
@@ -548,7 +627,13 @@ export function App() {
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         history={history}
-        onSelectBatch={handleSelectHistoryBatch}
+        onSelectBatch={(batch) => {
+          handleSelectHistoryBatch(batch)
+          if (batch.photos && batch.photos.length > 0) {
+            setSelectedPhoto(batch.photos[0])
+            setViewMode('studio')
+          }
+        }}
         onClearHistory={() => {
           StorageService.clearHistory()
           setHistory([])

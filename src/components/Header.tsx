@@ -9,6 +9,9 @@ interface HeaderProps {
   onOpenHistory: () => void
   onToggleTheme: () => void
   historyCount: number
+  hasPhotos?: boolean
+  viewMode?: 'studio' | 'grid'
+  onToggleViewMode?: () => void
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,33 +19,64 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onOpenHistory,
   onToggleTheme,
-  historyCount
+  historyCount,
+  hasPhotos = false,
+  viewMode = 'studio',
+  onToggleViewMode
 }) => {
   const isDark = settings.theme === 'dark'
   const hasKey = Boolean(settings.geminiApiKey?.trim())
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[var(--border-color)] bg-[var(--bg-app)]/80 backdrop-blur-xl px-5 sm:px-8 py-3.5 transition-all shadow-sm">
+    <header className="sticky top-0 z-40 w-full border-b border-[var(--border-color)] bg-[var(--bg-app)]/90 backdrop-blur-xl px-4 sm:px-8 py-3 transition-all shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Brand / Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <AlatusLogo size="md" showText={true} showSubtitle={true} />
+
+          {/* View mode toggle button if photos are loaded */}
+          {hasPhotos && onToggleViewMode && (
+            <div className="hidden md:flex items-center p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] text-xs">
+              <button
+                type="button"
+                onClick={onToggleViewMode}
+                className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                  viewMode === 'studio'
+                    ? 'bg-[#00509E] text-white shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                Studio
+              </button>
+              <button
+                type="button"
+                onClick={onToggleViewMode}
+                className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-[#00509E] text-white shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                Grade
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* API Status Pill with live glowing dot */}
+          {/* API Status Pill with live glowing dot & explicit engine tag (Requirement 8) */}
           <button
             onClick={onOpenSettings}
             className={`hidden sm:flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
               hasKey
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.15)]'
+                ? 'bg-[#00509E]/15 border-[#00509E]/40 text-[#1A6DC2] hover:bg-[#00509E]/25 shadow-sm'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 shadow-sm'
             }`}
-            title={hasKey ? 'Chave Gemini conectada e ativa' : 'Clique para configurar sua chave Gemini'}
+            title={hasKey ? 'Chave Gemini conectada e ativa (IA Remota)' : 'Sem chave: Usando Motor Heurístico Local. Clique para configurar chave Gemini'}
           >
-            <span className={`w-2 h-2 rounded-full ${hasKey ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]' : 'bg-amber-400'}`} />
-            <span>{hasKey ? 'IA Gemini Ativa' : 'Configurar API Key'}</span>
+            <span className={`w-2 h-2 rounded-full ${hasKey ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-amber-400 animate-pulse'}`} />
+            <span>{hasKey ? 'IA: Gemini 2.5 Flash' : 'Motor Local (Heurístico)'}</span>
           </button>
 
           {/* Theme Toggle */}

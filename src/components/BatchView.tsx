@@ -32,6 +32,8 @@ interface BatchViewProps {
   onStartProcessing: () => void
   onCancelProcessing: () => void
   onExportBatch: () => void
+  onOpenExportModal?: () => void
+  onSwitchToStudioView?: () => void
   onClearBatch: () => void
   onSelectPhoto: (photo: PhotoItem) => void
   onRetryPhoto: (photoId: string) => void
@@ -51,6 +53,8 @@ export const BatchView: React.FC<BatchViewProps> = ({
   onStartProcessing,
   onCancelProcessing,
   onExportBatch,
+  onOpenExportModal,
+  onSwitchToStudioView,
   onClearBatch,
   onSelectPhoto,
   onRetryPhoto,
@@ -80,9 +84,10 @@ export const BatchView: React.FC<BatchViewProps> = ({
 
   const filteredPhotos = photos.filter((p) => {
     if (filterStatus === 'all') return true
+    if (filterStatus === 'waiting') return p.status === 'waiting'
+    if (filterStatus === 'in_progress') return p.status === 'analyzing' || p.status === 'editing'
     if (filterStatus === 'completed') return p.status === 'completed'
     if (filterStatus === 'error') return p.status === 'error'
-    if (filterStatus === 'waiting') return p.status === 'waiting'
     return true
   })
 
@@ -130,6 +135,17 @@ export const BatchView: React.FC<BatchViewProps> = ({
 
           {/* Primary Action Buttons */}
           <div className="flex flex-wrap items-center gap-3">
+            {onSwitchToStudioView && (
+              <button
+                onClick={onSwitchToStudioView}
+                className="px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] hover:bg-[#00509E] hover:text-white border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] transition-all flex items-center gap-2 shadow-sm"
+                title="Abrir a tela principal de edição detalhada (Modo Studio)"
+              >
+                <Sliders className="w-4 h-4 text-[#FFC72C]" />
+                <span>Modo Studio (Foco na Foto)</span>
+              </button>
+            )}
+
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
@@ -202,9 +218,15 @@ export const BatchView: React.FC<BatchViewProps> = ({
             )}
 
             <button
-              onClick={onExportBatch}
+              onClick={() => {
+                if (onOpenExportModal) {
+                  onOpenExportModal()
+                } else {
+                  onExportBatch()
+                }
+              }}
               disabled={completedPhotos === 0 || isProcessing || isExporting}
-              className="px-4 py-2.5 rounded-xl bg-[#252A31] hover:bg-[#323842] border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] transition-all flex items-center gap-2 disabled:opacity-40 shadow-sm"
+              className="px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] hover:bg-[#00509E] hover:text-white border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] transition-all flex items-center gap-2 disabled:opacity-40 shadow-sm"
               title="Exportar todas as fotos editadas em um arquivo ZIP"
             >
               {isExporting ? (
@@ -306,7 +328,7 @@ export const BatchView: React.FC<BatchViewProps> = ({
 
         {/* Filter, Compare and Grid Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[var(--border-color)]/60 text-xs">
-          {/* Status Filter Chips */}
+          {/* Status Filter Chips (Requirement 5) */}
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setFilterStatus('all')}
@@ -318,6 +340,28 @@ export const BatchView: React.FC<BatchViewProps> = ({
             >
               Todas ({totalPhotos})
             </button>
+            <button
+              onClick={() => setFilterStatus('waiting')}
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
+                filterStatus === 'waiting'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-color)] shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              Na fila ({waitingPhotos})
+            </button>
+            {inProgressPhotos > 0 && (
+              <button
+                onClick={() => setFilterStatus('in_progress')}
+                className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
+                  filterStatus === 'in_progress'
+                    ? 'bg-[#00509E]/25 text-[#1A6DC2] border border-[#00509E]/40 shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[#1A6DC2]'
+                }`}
+              >
+                Processando ({inProgressPhotos})
+              </button>
+            )}
             <button
               onClick={() => setFilterStatus('completed')}
               className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
@@ -337,7 +381,7 @@ export const BatchView: React.FC<BatchViewProps> = ({
                     : 'text-[var(--text-secondary)] hover:text-rose-400'
                 }`}
               >
-                Erros ({errorPhotos})
+                Falhou ({errorPhotos})
               </button>
             )}
           </div>

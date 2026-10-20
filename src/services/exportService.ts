@@ -9,6 +9,13 @@ export interface ExportProgress {
   percentage: number
 }
 
+export interface ExportResult {
+  total: number
+  successCount: number
+  failureCount: number
+  failedFiles: { filename: string; reason: string; photoId: string }[]
+}
+
 export class ExportService {
   /**
    * Helper to load an image element from an Object URL
@@ -65,14 +72,21 @@ export class ExportService {
   }
 
   /**
-   * Exports an entire batch into a ZIP archive with progress reporting
+   * Exports an entire batch into a ZIP archive with progress reporting and detailed outcome metrics
    */
   public static async exportBatchToZip(
     photos: PhotoItem[],
     settings: AppSettings,
     onProgress?: (p: ExportProgress) => void
-  ): Promise<void> {
-    if (!photos || photos.length === 0) return
+  ): Promise<ExportResult> {
+    const result: ExportResult = {
+      total: photos?.length || 0,
+      successCount: 0,
+      failureCount: 0,
+      failedFiles: []
+    }
+
+    if (!photos || photos.length === 0) return result
 
     const zip = new JSZip()
     const folder = zip.folder('fotos_editadas_ai') || zip
@@ -106,25 +120,36 @@ export class ExportService {
 
         const exportName = this.getExportFilename(photo.filename, settings.exportSuffix, settings.exportFormat)
         folder.file(exportName, blob)
-      } catch (err) {
+        result.successCount++
+      } catch (err: any) {
         console.error(`Erro ao exportar foto ${photo.filename}:`, err)
+        result.failureCount++
+        result.failedFiles.push({
+          photoId: photo.id,
+          filename: photo.filename,
+          reason: err.message || 'Falha ao renderizar ou compactar imagem'
+        })
       }
     }
 
-    const zipContent = await zip.generateAsync({
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 }
-    })
+    if (result.successCount > 0) {
+      const zipContent = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      })
 
-    const zipName = `lote_ai_batch_${new Date().toISOString().slice(0, 10)}.zip`
-    const url = URL.createObjectURL(zipContent)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = zipName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    setTimeout(() => URL.revokeObjectURL(url), 10000)
+      const zipName = `lote_ai_batch_${new Date().toISOString().slice(0, 10)}.zip`
+      const url = URL.createObjectURL(zipContent)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = zipName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    }
+
+    return result
   }
 }

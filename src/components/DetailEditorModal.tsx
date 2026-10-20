@@ -45,10 +45,8 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
   onUpdatePhotoAdjustments,
   onNavigatePhoto
 }) => {
-  if (!isOpen || !photo) return null
-
   // Local adjustments state
-  const [adjustments, setAdjustments] = useState<PhotoAdjustments>({ ...photo.userAdjustments })
+  const [adjustments, setAdjustments] = useState<PhotoAdjustments>(photo ? { ...photo.userAdjustments } : { ...DEFAULT_ADJUSTMENTS })
   const [splitPos, setSplitPos] = useState(50) // Percentage 0 to 100
   const [isDraggingSplit, setIsDraggingSplit] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(1) // 1, 1.5, 2
@@ -56,6 +54,11 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
   const [reanalyzePrompt, setReanalyzePrompt] = useState('')
   const [isReanalyzing, setIsReanalyzing] = useState(false)
   const [reanalyzeSuccess, setReanalyzeSuccess] = useState(false)
+
+  // Canvas refs
+  const editedCanvasRef = useRef<HTMLCanvasElement>(null)
+  const imgElementRef = useRef<HTMLImageElement | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Photos indexing for navigation
   const currentIndex = photos && photo ? photos.findIndex((p) => p.id === photo.id) : -1
@@ -74,9 +77,19 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
     }
   }
 
+  const renderCanvas = (currentAdj: PhotoAdjustments) => {
+    if (!editedCanvasRef.current || !imgElementRef.current) return
+    ImageEditingService.renderToCanvas(
+      imgElementRef.current,
+      editedCanvasRef.current,
+      currentAdj,
+      { maxDimension: 1400 }
+    )
+  }
+
   // Keyboard navigation & shortcuts (Lightroom style)
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || !photo) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
@@ -99,13 +112,9 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, photo, photos, currentIndex, hasPrev, hasNext, onClose])
 
-  // Canvas refs
-  const editedCanvasRef = useRef<HTMLCanvasElement>(null)
-  const imgElementRef = useRef<HTMLImageElement | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
   // Load image element and render
   useEffect(() => {
+    if (!photo) return
     setAdjustments({ ...photo.userAdjustments })
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -114,17 +123,9 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
       renderCanvas({ ...photo.userAdjustments })
     }
     img.src = photo.originalUrl
-  }, [photo.id])
+  }, [photo?.id])
 
-  const renderCanvas = (currentAdj: PhotoAdjustments) => {
-    if (!editedCanvasRef.current || !imgElementRef.current) return
-    ImageEditingService.renderToCanvas(
-      imgElementRef.current,
-      editedCanvasRef.current,
-      currentAdj,
-      { maxDimension: 1400 }
-    )
-  }
+  if (!isOpen || !photo) return null
 
   const handleAdjustmentChange = (key: keyof PhotoAdjustments, value: number) => {
     const updated = { ...adjustments, [key]: value }
