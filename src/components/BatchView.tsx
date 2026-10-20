@@ -13,7 +13,8 @@ import {
   Layers, 
   Trash2,
   Cpu,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react'
 import { PhotoItem, AppSettings, ProcessingStatus } from '../types/photo'
 import { PhotoCard } from './PhotoCard'
@@ -37,6 +38,7 @@ interface BatchViewProps {
   onRetryFailedPhotos: () => void
   onRemovePhoto: (photoId: string) => void
   onAddMorePhotos: (files: File[]) => void
+  onGenerateTestBatch?: (count: number) => void
 }
 
 export const BatchView: React.FC<BatchViewProps> = ({
@@ -54,11 +56,13 @@ export const BatchView: React.FC<BatchViewProps> = ({
   onRetryPhoto,
   onRetryFailedPhotos,
   onRemovePhoto,
-  onAddMorePhotos
+  onAddMorePhotos,
+  onGenerateTestBatch
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [isComparingAfter, setIsComparingAfter] = useState(true)
   const [gridDensity, setGridDensity] = useState<'compact' | 'normal' | 'large'>('normal')
+  const [isFailureReportOpen, setIsFailureReportOpen] = useState(false)
 
   const totalPhotos = photos.length
   const completedPhotos = photos.filter((p) => p.status === 'completed').length
@@ -135,13 +139,47 @@ export const BatchView: React.FC<BatchViewProps> = ({
               <span>Adicionar Mais Fotos</span>
             </button>
 
+            {/* Test Batch Generator Quick Buttons (Fase 3) */}
+            {onGenerateTestBatch && (
+              <div className="hidden sm:flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] text-xs">
+                <span className="text-[10px] text-[var(--text-muted)] px-1.5 font-bold uppercase tracking-wider">Testar Lote:</span>
+                <button
+                  type="button"
+                  onClick={() => onGenerateTestBatch(4)}
+                  disabled={isProcessing}
+                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
+                  title="Carregar 4 fotos de teste (Pequeno)"
+                >
+                  4 fotos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGenerateTestBatch(12)}
+                  disabled={isProcessing}
+                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
+                  title="Carregar 12 fotos de teste (Médio)"
+                >
+                  12 fotos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGenerateTestBatch(24)}
+                  disabled={isProcessing}
+                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
+                  title="Carregar 24 fotos de teste (Grande)"
+                >
+                  24 fotos
+                </button>
+              </div>
+            )}
+
             {isProcessing ? (
               <button
                 onClick={onCancelProcessing}
                 className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-rose-900/30"
               >
                 <Pause className="w-4 h-4" />
-                <span>Interromper Processamento</span>
+                <span>Pausar / Cancelar</span>
               </button>
             ) : (
               <button
@@ -149,10 +187,17 @@ export const BatchView: React.FC<BatchViewProps> = ({
                 disabled={waitingPhotos === 0 && errorPhotos === 0}
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#00509E] to-[#1A6DC2] hover:from-[#003F7E] hover:to-[#00509E] text-white text-xs font-bold shadow-xl shadow-[#00509E]/30 transition-all flex items-center gap-2 disabled:opacity-40"
               >
-                <Sparkles className="w-4 h-4 text-[#FFC72C]" />
-                <span>
-                  {completedPhotos > 0 ? 'ANALISAR RESTANTES' : 'ANALISAR E EDITAR LOTE'}
-                </span>
+                {completedPhotos > 0 && waitingPhotos > 0 ? (
+                  <>
+                    <Play className="w-4 h-4 text-[#FFC72C] fill-[#FFC72C]" />
+                    <span>RETOMAR LOTE ({waitingPhotos} RESTANTES)</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-[#FFC72C]" />
+                    <span>{completedPhotos > 0 ? 'ANALISAR RESTANTES' : 'ANALISAR E EDITAR LOTE'}</span>
+                  </>
+                )}
               </button>
             )}
 
@@ -234,20 +279,28 @@ export const BatchView: React.FC<BatchViewProps> = ({
           </div>
         )}
 
-        {/* Error Notification Alert */}
+        {/* Error Notification Alert with Failure Report Button */}
         {errorPhotos > 0 && !isProcessing && (
-          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 text-xs">
+          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-rose-400 font-semibold">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorPhotos} {errorPhotos === 1 ? 'foto não pôde ser processada.' : 'fotos não puderam ser processadas.'}</span>
+              <span>{errorPhotos} {errorPhotos === 1 ? 'foto apresentou falha na análise.' : 'fotos apresentaram falha na análise.'}</span>
             </div>
-            <button
-              onClick={onRetryFailedPhotos}
-              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span>Tentar novamente</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsFailureReportOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--color-gray-border)] border border-[var(--border-color)] text-[var(--text-primary)] font-bold transition-all shadow-sm"
+              >
+                Ver Relatório de Falhas ({errorPhotos})
+              </button>
+              <button
+                onClick={onRetryFailedPhotos}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Tentar todas novamente</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -354,6 +407,98 @@ export const BatchView: React.FC<BatchViewProps> = ({
           />
         ))}
       </div>
+
+      {/* Failure Report Modal (Fase 3: Relatórios de falhas por foto) */}
+      {isFailureReportOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+          onClick={() => setIsFailureReportOpen(false)}
+        >
+          <div 
+            className="w-full max-w-xl bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)] bg-[var(--bg-subtle)]">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Relatório de Falhas do Lote</h3>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    {errorPhotos} {errorPhotos === 1 ? 'fotografia com falha de processamento' : 'fotografias com falha de processamento'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsFailureReportOpen(false)}
+                className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-3 flex-1">
+              {photos.filter((p) => p.status === 'error').map((p) => (
+                <div 
+                  key={p.id}
+                  className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-rose-500/25 flex items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-center gap-3 truncate">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-black shrink-0 border border-[var(--border-color)]">
+                      <img src={p.originalUrl} alt={p.filename} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="truncate">
+                      <h4 className="font-bold text-[var(--text-primary)] truncate">{p.filename}</h4>
+                      <p className="text-[11px] text-rose-400 font-medium truncate mt-0.5">
+                        {p.errorMessage || 'Falha temporária na análise Gemini'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        onRetryPhoto(p.id)
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition-all flex items-center gap-1 shadow-sm"
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      <span>Re-tentar</span>
+                    </button>
+                    <button
+                      onClick={() => onRemovePhoto(p.id)}
+                      className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10"
+                      title="Remover foto"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-[var(--border-color)] bg-[var(--bg-subtle)] flex items-center justify-between">
+              <button
+                onClick={() => setIsFailureReportOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                Fechar
+              </button>
+              <button
+                onClick={() => {
+                  setIsFailureReportOpen(false)
+                  onRetryFailedPhotos()
+                }}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00509E] to-[#1A6DC2] hover:from-[#003F7E] text-white text-xs font-bold flex items-center gap-1.5 shadow-md"
+              >
+                <RotateCw className="w-3.5 h-3.5 text-[#FFC72C]" />
+                <span>Tentar Todas Novamente</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

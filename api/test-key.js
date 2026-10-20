@@ -1,9 +1,23 @@
 import { GoogleGenAI } from '@google/genai'
 import { generateWithFallback } from './_gemini.js'
+import { checkRateLimit, sanitizeInternalError, applySecurityHeaders } from './_security.js'
 
 export default async function handler(req, res) {
+  applySecurityHeaders(res)
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
+  }
+
+  // Rate Limiting Protection (max 10 test attempts per minute)
+  const rateLimitResult = checkRateLimit(req)
+  if (!rateLimitResult.allowed) {
+    res.setHeader('Retry-After', String(rateLimitResult.retryAfter))
+    return res.status(429).json({
+      success: false,
+      errorCode: 'RATE_LIMIT_EXCEEDED',
+      error: `Muitas tentativas simultâneas. Aguarde ${rateLimitResult.retryAfter}s.`
+    })
   }
 
   try {
@@ -25,6 +39,13 @@ export default async function handler(req, res) {
       responseText: response.text 
     })
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message || 'Erro ao validar chave Gemini.' })
+    console.error('Erro na validação de chave:', err)
+    const sanitized = sanitizeInternalError(err)
+    return res.status(sanitized.status).json({ 
+      success: false, 
+      errorCode: sanitized.errorCode,
+      error: sanitized.message 
+    })
   }
 }
+

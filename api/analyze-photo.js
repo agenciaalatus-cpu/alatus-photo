@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { generateWithFallback } from './_gemini.js'
+import { checkRateLimit, validatePhotoPayload, sanitizeInternalError, applySecurityHeaders } from './_security.js'
 
 export const config = {
   api: {
@@ -10,24 +11,44 @@ export const config = {
 }
 
 export default async function handler(req, res) {
+  applySecurityHeaders(res)
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
-  try {
-    const data = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {})
-    const apiKey = data.apiKey || process.env.GEMINI_API_KEY
+  // 1. Rate Limiting Protection
+  const rateLimitResult = checkRateLimit(req)
+  if (!rateLimitResult.allowed) {
+    res.setHeader('Retry-After', String(rateLimitResult.retryAfter))
+    return res.status(429).json({
+      success: false,
+      errorCode: 'RATE_LIMIT_EXCEEDED',
+      error: `Muitas requisições simultâneas. Aguarde ${rateLimitResult.retryAfter}s para nova análise.`
+    })
+  }
 
-    if (!apiKey) {
-      return res.status(401).json({ 
-        error: 'NO_API_KEY', 
-        message: 'API Key do Gemini não encontrada no servidor nem nas configurações.' 
+  try {
+    const rawData = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {})
+    
+    // 2. Payload Validation & Sanitization
+    const validation = validatePhotoPayload(rawData)
+    if (!validation.valid) {
+      return res.status(validation.status || 400).json({
+        success: false,
+        error: validation.error
       })
     }
 
-    const { base64Image, mimeType, styleProfile, customInstruction } = data
-    if (!base64Image) {
-      return res.status(400).json({ error: 'Nenhuma imagem enviada para análise.' })
+    const { base64Image, mimeType, styleProfile, customInstruction } = validation.data
+    const apiKey = rawData.apiKey || process.env.GEMINI_API_KEY
+
+    if (!apiKey) {
+      return res.status(401).json({ 
+        success: false,
+        errorCode: 'NO_API_KEY', 
+        error: 'API Key do Gemini não encontrada no servidor nem nas configurações.' 
+      })
     }
 
     const ai = new GoogleGenAI({ apiKey })
@@ -129,9 +150,11 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
     return res.status(200).json({ success: true, analysis: parsed })
   } catch (err) {
     console.error('Erro na análise Gemini Vercel:', err)
-    return res.status(500).json({ 
+    const sanitized = sanitizeInternalError(err)
+    return res.status(sanitized.status).json({ 
       success: false, 
-      error: err.message || 'Erro durante a análise com Gemini' 
+      errorCode: sanitized.errorCode,
+      error: sanitized.message 
     })
   }
 }

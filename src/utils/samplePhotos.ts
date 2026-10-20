@@ -1,168 +1,314 @@
 /**
- * Generates realistic canvas sample photos for demonstration and instant testing:
- * 1. Portrait Indoor: Sub-exposed with warm interior lighting and skin
- * 2. Landscape Outdoor: High-key sunny scene with bright sky
- * 3. Urban Evening: Cool-toned street photography
- * 4. Studio Close-up: Neutral portrait with balanced lighting
+ * Generates realistic canvas sample photos for photographic testing and quality validation:
+ * 1. Retrato Pele Clara - Luz de Janela Suave
+ * 2. Retrato Pele Negra / Morena - Texturas Ricas & Preservação de Sombras
+ * 3. Retrato em Contra-Luz / Pôr do Sol (Golden Hour & Silhueta a Recuperar)
+ * 4. Foto Interna com Luz de Tungstênio (Amarelada & Subexposta para teste de neutralização)
+ * 5. Paisagem Externa Sol a Pino (Luz dura, alto contraste e céu brilhante)
+ * 6. Retrato Estúdio Comercial (Fundo neutro 18%, balanço de estúdio ideal)
  */
 
-export async function createSamplePhotoFiles(): Promise<File[]> {
-  const samples = [
-    {
-      name: 'IMG_2026_Retrato_Indoor.jpg',
-      width: 1200,
-      height: 900,
-      draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        // Sub-exposed warm indoor scene
-        const grad = ctx.createLinearGradient(0, 0, w, h)
-        grad.addColorStop(0, '#1c1512')
-        grad.addColorStop(0.5, '#35241b')
-        grad.addColorStop(1, '#18120e')
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, w, h)
+export interface SamplePhotoDef {
+  name: string
+  label: string
+  description: string
+  skinToneCategory?: 'light' | 'deep' | 'medium' | 'none'
+  lightingType: string
+  width: number
+  height: number
+  draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void
+}
 
-        // Warm ambient light from lamp
-        const lightGrad = ctx.createRadialGradient(w * 0.75, h * 0.3, 20, w * 0.75, h * 0.3, 350)
-        lightGrad.addColorStop(0, 'rgba(255, 185, 110, 0.45)')
-        lightGrad.addColorStop(1, 'rgba(0, 0, 0, 0)')
-        ctx.fillStyle = lightGrad
-        ctx.fillRect(0, 0, w, h)
+export const SAMPLE_PHOTO_CATALOG: SamplePhotoDef[] = [
+  {
+    name: 'IMG_01_Retrato_Pele_Clara_Janela.jpg',
+    label: 'Pele Clara • Janela Suave',
+    description: 'Iluminação lateral difusa, realces suaves e tons pastéis.',
+    skinToneCategory: 'light',
+    lightingType: 'soft_window',
+    width: 1200,
+    height: 900,
+    draw: (ctx, w, h) => {
+      // Soft ambient room gradient
+      const bgGrad = ctx.createLinearGradient(0, 0, w, 0)
+      bgGrad.addColorStop(0, '#e8ebf0') // window light side
+      bgGrad.addColorStop(0.5, '#c2c9d4')
+      bgGrad.addColorStop(1, '#636c7a') // shadow side
+      ctx.fillStyle = bgGrad
+      ctx.fillRect(0, 0, w, h)
 
-        // Subject silhouette & skin tones
-        ctx.fillStyle = '#b87d60' // skin base
-        ctx.beginPath()
-        ctx.ellipse(w * 0.45, h * 0.48, 120, 160, 0, 0, Math.PI * 2)
-        ctx.fill()
+      // Window curtain light beam
+      const windowLight = ctx.createLinearGradient(0, 0, w * 0.45, h)
+      windowLight.addColorStop(0, 'rgba(255, 255, 255, 0.6)')
+      windowLight.addColorStop(1, 'rgba(255, 255, 255, 0.05)')
+      ctx.fillStyle = windowLight
+      ctx.fillRect(0, 0, w * 0.55, h)
 
-        // Soft hair
-        ctx.fillStyle = '#1a110a'
-        ctx.beginPath()
-        ctx.arc(w * 0.45, h * 0.42, 135, Math.PI * 0.8, Math.PI * 2.2)
-        ctx.fill()
+      // Light skin portrait subject (Caucasian / Pale Olive)
+      // Base torso
+      ctx.fillStyle = '#2c3540'
+      ctx.beginPath()
+      ctx.moveTo(w * 0.28, h)
+      ctx.lineTo(w * 0.5, h * 0.62)
+      ctx.lineTo(w * 0.72, h)
+      ctx.fill()
 
-        // Clothing
-        ctx.fillStyle = '#222d3b'
-        ctx.beginPath()
-        ctx.moveTo(w * 0.25, h)
-        ctx.lineTo(w * 0.45, h * 0.65)
-        ctx.lineTo(w * 0.65, h)
-        ctx.fill()
-      }
-    },
-    {
-      name: 'IMG_2027_Paisagem_Externa_Sol.jpg',
-      width: 1200,
-      height: 800,
-      draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        // High-key bright sky
-        const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.65)
-        skyGrad.addColorStop(0, '#eaf2ff')
-        skyGrad.addColorStop(0.4, '#c8dcfa')
-        skyGrad.addColorStop(1, '#ffffff') // blown highlight sun
-        ctx.fillStyle = skyGrad
-        ctx.fillRect(0, 0, w, h * 0.65)
+      // Neck & Face
+      const skinGrad = ctx.createLinearGradient(w * 0.4, h * 0.35, w * 0.6, h * 0.55)
+      skinGrad.addColorStop(0, '#f9d8c2') // highlight skin
+      skinGrad.addColorStop(0.7, '#e8b89e') // midtone
+      skinGrad.addColorStop(1, '#c5947b') // shadow falloff
+      ctx.fillStyle = skinGrad
+      ctx.beginPath()
+      ctx.ellipse(w * 0.5, h * 0.45, 125, 165, 0, 0, Math.PI * 2)
+      ctx.fill()
 
-        // Intense Sun Flare
-        const sunGrad = ctx.createRadialGradient(w * 0.8, h * 0.2, 10, w * 0.8, h * 0.2, 280)
-        sunGrad.addColorStop(0, 'rgba(255, 255, 240, 0.95)')
-        sunGrad.addColorStop(0.3, 'rgba(255, 245, 200, 0.6)')
-        sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)')
-        ctx.fillStyle = sunGrad
-        ctx.fillRect(0, 0, w, h)
-
-        // Rolling Mountains / Hills
-        ctx.fillStyle = '#4a5b42'
-        ctx.beginPath()
-        ctx.moveTo(0, h * 0.65)
-        ctx.quadraticCurveTo(w * 0.35, h * 0.52, w * 0.6, h * 0.68)
-        ctx.quadraticCurveTo(w * 0.85, h * 0.6, w, h * 0.72)
-        ctx.lineTo(w, h)
-        ctx.lineTo(0, h)
-        ctx.fill()
-
-        // Foreground foliage
-        ctx.fillStyle = '#2f3d28'
-        ctx.beginPath()
-        ctx.moveTo(0, h * 0.78)
-        ctx.quadraticCurveTo(w * 0.5, h * 0.7, w, h * 0.85)
-        ctx.lineTo(w, h)
-        ctx.lineTo(0, h)
-        ctx.fill()
-      }
-    },
-    {
-      name: 'IMG_2028_Urbano_Noite_Frio.jpg',
-      width: 1200,
-      height: 900,
-      draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        // Deep blue dusk
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, h)
-        bgGrad.addColorStop(0, '#0a101d')
-        bgGrad.addColorStop(0.7, '#152136')
-        bgGrad.addColorStop(1, '#080c14')
-        ctx.fillStyle = bgGrad
-        ctx.fillRect(0, 0, w, h)
-
-        // City buildings
-        ctx.fillStyle = '#0f1724'
-        for (let i = 0; i < 7; i++) {
-          const bw = 140 + (i % 3) * 30
-          const bh = 300 + (i % 4) * 80
-          const bx = i * 170
-          ctx.fillRect(bx, h - bh - 100, bw, bh + 100)
-
-          // Window lights
-          ctx.fillStyle = i % 2 === 0 ? '#ffea9f' : '#88c0ff'
-          for (let wy = h - bh - 60; wy < h - 140; wy += 40) {
-            for (let wx = bx + 20; wx < bx + bw - 20; wx += 35) {
-              if (Math.random() > 0.4) {
-                ctx.fillRect(wx, wy, 15, 20)
-              }
-            }
-          }
-          ctx.fillStyle = '#0f1724'
-        }
-
-        // Street reflection
-        const roadGrad = ctx.createLinearGradient(0, h - 150, 0, h)
-        roadGrad.addColorStop(0, '#101520')
-        roadGrad.addColorStop(1, '#05070a')
-        ctx.fillStyle = roadGrad
-        ctx.fillRect(0, h - 150, w, 150)
-      }
-    },
-    {
-      name: 'IMG_2029_Retrato_Estudio_Neutro.jpg',
-      width: 1200,
-      height: 900,
-      draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        // Clean neutral grey studio background
-        const grad = ctx.createRadialGradient(w * 0.5, h * 0.45, 50, w * 0.5, h * 0.45, 550)
-        grad.addColorStop(0, '#666b73')
-        grad.addColorStop(1, '#33373d')
-        ctx.fillStyle = grad
-        ctx.fillRect(0, 0, w, h)
-
-        // Portrait subject
-        ctx.fillStyle = '#c79177' // skin tone
-        ctx.beginPath()
-        ctx.ellipse(w * 0.5, h * 0.45, 130, 175, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Clean dark blazer
-        ctx.fillStyle = '#17191d'
-        ctx.beginPath()
-        ctx.moveTo(w * 0.28, h)
-        ctx.lineTo(w * 0.5, h * 0.62)
-        ctx.lineTo(w * 0.72, h)
-        ctx.fill()
-      }
+      // Hair
+      ctx.fillStyle = '#3a271d'
+      ctx.beginPath()
+      ctx.arc(w * 0.5, h * 0.38, 140, Math.PI * 0.85, Math.PI * 2.15)
+      ctx.fill()
     }
-  ]
+  },
+  {
+    name: 'IMG_02_Retrato_Pele_Negra_Contraste.jpg',
+    label: 'Pele Negra • Tons Ricos & Textura',
+    description: 'Iluminação precisa para tons de pele escuros com brilho especular.',
+    skinToneCategory: 'deep',
+    lightingType: 'rich_specular',
+    width: 1200,
+    height: 900,
+    draw: (ctx, w, h) => {
+      // Atmospheric textured background
+      const bgGrad = ctx.createLinearGradient(0, 0, w, h)
+      bgGrad.addColorStop(0, '#1a1f2c')
+      bgGrad.addColorStop(0.6, '#131722')
+      bgGrad.addColorStop(1, '#0b0d14')
+      ctx.fillStyle = bgGrad
+      ctx.fillRect(0, 0, w, h)
+
+      // Subtle warm rim light
+      const rimLight = ctx.createRadialGradient(w * 0.75, h * 0.35, 10, w * 0.75, h * 0.35, 400)
+      rimLight.addColorStop(0, 'rgba(255, 190, 130, 0.35)')
+      rimLight.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      ctx.fillStyle = rimLight
+      ctx.fillRect(0, 0, w, h)
+
+      // Deep rich skin tones (Deep melanin / Black complexion)
+      const skinGrad = ctx.createLinearGradient(w * 0.42, h * 0.32, w * 0.62, h * 0.6)
+      skinGrad.addColorStop(0, '#5a3825') // Specular high-light
+      skinGrad.addColorStop(0.4, '#3f2415') // Rich midtone
+      skinGrad.addColorStop(0.85, '#29150b') // Deep tone
+      skinGrad.addColorStop(1, '#1b0d06') // Soft shadow
+      ctx.fillStyle = skinGrad
+      ctx.beginPath()
+      ctx.ellipse(w * 0.5, h * 0.46, 130, 175, 0, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Cheek & forehead specular catchlight (subtle golden sheen)
+      const sheen = ctx.createRadialGradient(w * 0.46, h * 0.4, 5, w * 0.46, h * 0.4, 45)
+      sheen.addColorStop(0, 'rgba(180, 125, 90, 0.45)')
+      sheen.addColorStop(1, 'rgba(90, 56, 37, 0)')
+      ctx.fillStyle = sheen
+      ctx.beginPath()
+      ctx.ellipse(w * 0.46, h * 0.4, 35, 50, -0.2, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Clothing
+      ctx.fillStyle = '#0f1724'
+      ctx.beginPath()
+      ctx.moveTo(w * 0.25, h)
+      ctx.lineTo(w * 0.5, h * 0.64)
+      ctx.lineTo(w * 0.75, h)
+      ctx.fill()
+    }
+  },
+  {
+    name: 'IMG_03_Retrato_Contra_Luz_Golden_Hour.jpg',
+    label: 'Contra-Luz • Golden Hour',
+    description: 'Sol poente atrás do modelo, silhueta com sombras a abrir e altas luzes a salvar.',
+    skinToneCategory: 'medium',
+    lightingType: 'backlit_golden',
+    width: 1200,
+    height: 850,
+    draw: (ctx, w, h) => {
+      // Golden hour sunset sky
+      const sunset = ctx.createLinearGradient(0, 0, 0, h)
+      sunset.addColorStop(0, '#fca34d')
+      sunset.addColorStop(0.3, '#f97316')
+      sunset.addColorStop(0.65, '#ea580c')
+      sunset.addColorStop(1, '#7c2d12')
+      ctx.fillStyle = sunset
+      ctx.fillRect(0, 0, w, h)
+
+      // Intense Backlit Sun Halo
+      const sunHalo = ctx.createRadialGradient(w * 0.5, h * 0.35, 20, w * 0.5, h * 0.35, 320)
+      sunHalo.addColorStop(0, 'rgba(255, 255, 240, 0.95)')
+      sunHalo.addColorStop(0.4, 'rgba(254, 215, 170, 0.65)')
+      sunHalo.addColorStop(1, 'rgba(234, 88, 12, 0)')
+      ctx.fillStyle = sunHalo
+      ctx.fillRect(0, 0, w, h)
+
+      // Backlit Silhouette Subject
+      ctx.fillStyle = '#26140d'
+      ctx.beginPath()
+      ctx.ellipse(w * 0.5, h * 0.5, 120, 160, 0, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Golden Rim Light on hair & shoulders
+      ctx.strokeStyle = 'rgba(255, 237, 213, 0.85)'
+      ctx.lineWidth = 9
+      ctx.beginPath()
+      ctx.arc(w * 0.5, h * 0.44, 126, Math.PI * 0.9, Math.PI * 2.1)
+      ctx.stroke()
+
+      // Subject Torso
+      ctx.fillStyle = '#1c0f0a'
+      ctx.beginPath()
+      ctx.moveTo(w * 0.28, h)
+      ctx.lineTo(w * 0.5, h * 0.66)
+      ctx.lineTo(w * 0.72, h)
+      ctx.fill()
+    }
+  },
+  {
+    name: 'IMG_04_Indoor_Tungstenio_Subexposto.jpg',
+    label: 'Tungstênio • Amarelado & Subexposto',
+    description: 'Iluminação amarelada de lâmpada incandescente com -1.2 EV de subexposição.',
+    skinToneCategory: 'medium',
+    lightingType: 'indoor_tungsten',
+    width: 1200,
+    height: 900,
+    draw: (ctx, w, h) => {
+      // Dark room with heavy yellowish cast
+      const room = ctx.createLinearGradient(0, 0, w, h)
+      room.addColorStop(0, '#241a0d')
+      room.addColorStop(0.5, '#1e1408')
+      room.addColorStop(1, '#110a04')
+      ctx.fillStyle = room
+      ctx.fillRect(0, 0, w, h)
+
+      // Intense warm yellow lamp glow
+      const lamp = ctx.createRadialGradient(w * 0.72, h * 0.28, 15, w * 0.72, h * 0.28, 380)
+      lamp.addColorStop(0, 'rgba(255, 205, 80, 0.55)')
+      lamp.addColorStop(0.5, 'rgba(217, 145, 30, 0.25)')
+      lamp.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      ctx.fillStyle = lamp
+      ctx.fillRect(0, 0, w, h)
+
+      // Heavily yellow/orange tinted face
+      const face = ctx.createLinearGradient(w * 0.4, h * 0.35, w * 0.65, h * 0.6)
+      face.addColorStop(0, '#c98a3c') // warm yellow-orange skin
+      face.addColorStop(1, '#7a4e1d')
+      ctx.fillStyle = face
+      ctx.beginPath()
+      ctx.ellipse(w * 0.45, h * 0.5, 115, 155, 0, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Dark jacket
+      ctx.fillStyle = '#15120c'
+      ctx.beginPath()
+      ctx.moveTo(w * 0.24, h)
+      ctx.lineTo(w * 0.45, h * 0.67)
+      ctx.lineTo(w * 0.66, h)
+      ctx.fill()
+    }
+  },
+  {
+    name: 'IMG_05_Paisagem_Sol_A_Pino_Alto_Contraste.jpg',
+    label: 'Sol a Pino • Alto Contraste',
+    description: 'Céu quase estourado, sombras duras e folhagem sob meio-dia ensolarado.',
+    skinToneCategory: 'none',
+    lightingType: 'harsh_midday',
+    width: 1200,
+    height: 800,
+    draw: (ctx, w, h) => {
+      // High-key midday sky
+      const sky = ctx.createLinearGradient(0, 0, 0, h * 0.6)
+      sky.addColorStop(0, '#f0f5ff')
+      sky.addColorStop(0.3, '#d8e7ff')
+      sky.addColorStop(1, '#ffffff')
+      ctx.fillStyle = sky
+      ctx.fillRect(0, 0, w, h * 0.6)
+
+      // Blown out overhead sun
+      const sun = ctx.createRadialGradient(w * 0.5, h * 0.1, 10, w * 0.5, h * 0.1, 240)
+      sun.addColorStop(0, 'rgba(255, 255, 255, 1)')
+      sun.addColorStop(0.4, 'rgba(255, 255, 220, 0.7)')
+      sun.addColorStop(1, 'rgba(255, 255, 255, 0)')
+      ctx.fillStyle = sun
+      ctx.fillRect(0, 0, w, h)
+
+      // Harsh rocky mountain with deep pitch-black cast shadows
+      ctx.fillStyle = '#414d3b'
+      ctx.beginPath()
+      ctx.moveTo(0, h * 0.62)
+      ctx.lineTo(w * 0.3, h * 0.45)
+      ctx.lineTo(w * 0.6, h * 0.6)
+      ctx.lineTo(w * 0.85, h * 0.48)
+      ctx.lineTo(w, h * 0.65)
+      ctx.lineTo(w, h)
+      ctx.lineTo(0, h)
+      ctx.fill()
+
+      // Deep shadow crevices
+      ctx.fillStyle = '#171e14'
+      ctx.beginPath()
+      ctx.moveTo(w * 0.3, h * 0.45)
+      ctx.lineTo(w * 0.45, h * 0.72)
+      ctx.lineTo(w * 0.6, h * 0.6)
+      ctx.fill()
+    }
+  },
+  {
+    name: 'IMG_06_Retrato_Estudio_Comercial_Neutro.jpg',
+    label: 'Estúdio • Fundo Neutro 18%',
+    description: 'Iluminação calibrada com softbox duplo e temperatura 5600K balanceada.',
+    skinToneCategory: 'medium',
+    lightingType: 'calibrated_studio',
+    width: 1200,
+    height: 900,
+    draw: (ctx, w, h) => {
+      // 18% Neutral Grey Studio backdrop
+      const studioBg = ctx.createRadialGradient(w * 0.5, h * 0.42, 40, w * 0.5, h * 0.42, 600)
+      studioBg.addColorStop(0, '#757980') // ~18% grey center
+      studioBg.addColorStop(0.7, '#474b52')
+      studioBg.addColorStop(1, '#2c2f35')
+      ctx.fillStyle = studioBg
+      ctx.fillRect(0, 0, w, h)
+
+      // Neutral medium skin subject (Hispanic / Mediterranean / Light Tan)
+      const skin = ctx.createLinearGradient(w * 0.42, h * 0.35, w * 0.58, h * 0.55)
+      skin.addColorStop(0, '#dfab8c')
+      skin.addColorStop(0.5, '#c89274')
+      skin.addColorStop(1, '#a97357')
+      ctx.fillStyle = skin
+      ctx.beginPath()
+      ctx.ellipse(w * 0.5, h * 0.46, 125, 170, 0, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Clean dark navy blazer
+      ctx.fillStyle = '#171e29'
+      ctx.beginPath()
+      ctx.moveTo(w * 0.28, h)
+      ctx.lineTo(w * 0.5, h * 0.63)
+      ctx.lineTo(w * 0.72, h)
+      ctx.fill()
+    }
+  }
+]
+
+/**
+ * Creates File instances from all or selected sample photo definitions.
+ */
+export async function createSamplePhotoFiles(selectedIndices?: number[]): Promise<File[]> {
+  const items = selectedIndices 
+    ? SAMPLE_PHOTO_CATALOG.filter((_, idx) => selectedIndices.includes(idx))
+    : SAMPLE_PHOTO_CATALOG
 
   const files: File[] = []
 
-  for (const sample of samples) {
+  for (const sample of items) {
     const canvas = document.createElement('canvas')
     canvas.width = sample.width
     canvas.height = sample.height

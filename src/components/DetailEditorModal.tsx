@@ -712,6 +712,43 @@ export const DetailEditorModal: React.FC<DetailEditorModalProps> = ({
                     className="w-full"
                   />
                 </div>
+
+                {/* Quality Metrics & Effects Feedback (Fase 2) */}
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-color)] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#FFC72C]" />
+                      Métricas de Nitidez & Ruído
+                    </span>
+                    <span className="text-[10px] font-mono text-[var(--text-muted)]">Rec. 709 Calibrado</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)]">
+                      <div className="text-[10px] text-[var(--text-secondary)] font-semibold">Ganho de Nitidez</div>
+                      <div className="text-sm font-bold text-[#FFC72C] font-mono mt-0.5">
+                        +{Math.round((adjustments.sharpness / 100) * 75)}%
+                      </div>
+                      <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                        {adjustments.sharpness > 45 ? '⚠️ Alta (risco de halos)' : adjustments.sharpness > 0 ? '✓ Equilibrada' : 'Sem ganho'}
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)]">
+                      <div className="text-[10px] text-[var(--text-secondary)] font-semibold">Atenuação de Ruído</div>
+                      <div className="text-sm font-bold text-emerald-400 font-mono mt-0.5">
+                        -{Math.round((adjustments.noise_reduction / 100) * 65)}%
+                      </div>
+                      <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                        {adjustments.noise_reduction > 50 ? 'Filtro Intenso' : adjustments.noise_reduction > 0 ? '✓ Preserva Bordas' : 'Inativo'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+                    O filtro de nitidez usa convolução Laplaciana de alta frequência com clamp anti-halo. A redução de ruído aplica suavização bilateral que preserva texturas e tons de pele.
+                  </p>
+                </div>
               </div>
             )}
 

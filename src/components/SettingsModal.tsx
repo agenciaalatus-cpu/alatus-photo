@@ -1,7 +1,24 @@
 import React, { useState } from 'react'
-import { X, Key, Palette, Sliders, Shield, Download, Check, AlertCircle, Loader2, Sparkles, ExternalLink } from 'lucide-react'
-import { AppSettings, StyleProfile } from '../types/photo'
+import { 
+  X, 
+  Key, 
+  Palette, 
+  Sliders, 
+  Shield, 
+  Download, 
+  Check, 
+  AlertCircle, 
+  Loader2, 
+  Sparkles, 
+  ExternalLink,
+  DollarSign,
+  TrendingUp,
+  Lock,
+  Cpu
+} from 'lucide-react'
+import { AppSettings, StyleProfile, UsageStats } from '../types/photo'
 import { GeminiService } from '../services/geminiService'
+import { StorageService } from '../services/storageService'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -19,7 +36,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [formData, setFormData] = useState<AppSettings>({ ...settings })
   const [isTestingKey, setIsTestingKey] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
-  const [activeTab, setActiveTab] = useState<'api' | 'style' | 'export' | 'privacy'>('api')
+  const [activeTab, setActiveTab] = useState<'api' | 'usage' | 'style' | 'export' | 'privacy'>('api')
+  const [usageStats] = useState<UsageStats>(() => StorageService.loadUsage())
 
   if (!isOpen) return null
 
@@ -69,7 +87,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-[var(--text-primary)]">Configurações • ALATUS PHOTO</h2>
-              <p className="text-xs text-[var(--text-secondary)]">Gemini API, preferências estéticas e exportação</p>
+              <p className="text-xs text-[var(--text-secondary)]">Gemini API, limites, custos e preferências</p>
             </div>
           </div>
           <button
@@ -81,10 +99,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-[var(--border-color)] px-6 bg-[var(--bg-subtle)]/50 gap-2">
+        <div className="flex border-b border-[var(--border-color)] px-6 bg-[var(--bg-subtle)]/50 gap-1 overflow-x-auto">
           <button
             onClick={() => setActiveTab('api')}
-            className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-1.5 py-3 px-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
               activeTab === 'api'
                 ? 'border-[#00509E] text-[var(--text-primary)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -94,8 +112,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             Gemini API
           </button>
           <button
+            onClick={() => setActiveTab('usage')}
+            className={`flex items-center gap-1.5 py-3 px-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
+              activeTab === 'usage'
+                ? 'border-[#00509E] text-[var(--text-primary)]'
+                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            Custos & Limites
+          </button>
+          <button
             onClick={() => setActiveTab('style')}
-            className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-1.5 py-3 px-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
               activeTab === 'style'
                 ? 'border-[#00509E] text-[var(--text-primary)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -106,7 +135,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('export')}
-            className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-1.5 py-3 px-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
               activeTab === 'export'
                 ? 'border-[#00509E] text-[var(--text-primary)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -117,14 +146,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('privacy')}
-            className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-1.5 py-3 px-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
               activeTab === 'privacy'
                 ? 'border-[#00509E] text-[var(--text-primary)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            Privacidade
+            Segurança
           </button>
         </div>
 
@@ -203,6 +232,103 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
                 <p>
                   Caso você processe fotos sem chave ou atinja os limites da sua cota, o aplicativo utilizará automaticamente nosso motor heurístico local de calibração fotográfica para que seu fluxo de trabalho nunca seja interrompido.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'usage' && (
+            <div className="space-y-5 animate-fade-in">
+              {/* Cost & Volume Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-color)]">
+                  <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                    <span>Custo Estimado</span>
+                  </div>
+                  <div className="text-xl font-black text-emerald-400 font-mono mt-1">
+                    ${usageStats.estimatedCostUsd.toFixed(4)}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                    ≈ R$ {(usageStats.estimatedCostUsd * 5.7).toFixed(2)} BRL
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-color)]">
+                  <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                    <TrendingUp className="w-4 h-4 text-[#FFC72C]" />
+                    <span>Fotos Hoje</span>
+                  </div>
+                  <div className="text-xl font-black text-[var(--text-primary)] font-mono mt-1">
+                    {usageStats.dailyCount} / {formData.dailyLimit || 100}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                    Limite diário seguro
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-color)]">
+                  <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                    <Cpu className="w-4 h-4 text-[#1A6DC2]" />
+                    <span>Total Acumulado</span>
+                  </div>
+                  <div className="text-xl font-black text-[var(--text-primary)] font-mono mt-1">
+                    {usageStats.totalPhotosProcessed}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                    {usageStats.totalAiAnalyses} via Gemini IA
+                  </div>
+                </div>
+              </div>
+
+              {/* Daily Limit Setting */}
+              <div className="p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-color)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-[var(--text-primary)]">Limite de Fotos por Dia</h4>
+                    <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                      Evita consumo acidental excessivo de requisições de API no servidor.
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    min={10}
+                    max={1000}
+                    step={10}
+                    value={formData.dailyLimit || 100}
+                    onChange={(e) => setFormData({ ...formData, dailyLimit: Math.max(10, parseInt(e.target.value) || 100) })}
+                    className="w-24 bg-[var(--bg-app)] border border-[var(--border-color)] rounded-xl px-3 py-1.5 text-xs text-right font-mono font-bold text-[var(--text-primary)] focus:outline-none focus:border-[#00509E]"
+                  />
+                </div>
+              </div>
+
+              {/* Supported Gemini Models List */}
+              <div className="p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-color)] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                    <Cpu className="w-3.5 h-3.5 text-[#00509E]" />
+                    Modelos Gemini em Operação
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono text-[10px] font-bold border border-emerald-500/30">
+                    Ativo
+                  </span>
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] space-y-1 font-mono">
+                  <div className="flex items-center justify-between py-1 border-b border-[var(--border-color)]/50">
+                    <span className="text-[var(--text-primary)]">1. gemini-2.5-flash</span>
+                    <span className="text-emerald-400 text-[10px]">Principal (Baixa latência)</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-[var(--border-color)]/50">
+                    <span>2. gemini-flash-latest</span>
+                    <span className="text-[var(--text-muted)] text-[10px]">Fallback estável</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span>3. gemini-2.5-flash-lite</span>
+                    <span className="text-[var(--text-muted)] text-[10px]">Ultra econômico</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-[var(--text-muted)] pt-1">
+                  O sistema alterna automaticamente entre os modelos em caso de indisponibilidade momentânea ou limite de cota sem perda de qualidade.
                 </p>
               </div>
             </div>

@@ -34,10 +34,20 @@ export function App() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentProcessingPhoto, setCurrentProcessingPhoto] = useState<PhotoItem | null>(null)
   const isCancelledRef = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Export state
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null)
+
+  // Load persistent history from IndexedDB on startup
+  useEffect(() => {
+    StorageService.loadHistoryAsync().then((loaded) => {
+      if (loaded && loaded.length > 0) {
+        setHistory(loaded)
+      }
+    })
+  }, [])
 
   // Theme synchronization
   useEffect(() => {
@@ -95,6 +105,20 @@ export function App() {
   const handleLoadSamples = async () => {
     const sampleFiles = await createSamplePhotoFiles()
     await handleFilesSelected(sampleFiles)
+  }
+
+  // Generate test batches of configurable sizes (small: 4, medium: 12, large: 24)
+  const handleGenerateTestBatch = async (count: number) => {
+    const baseSamples = await createSamplePhotoFiles()
+    const files: File[] = []
+    for (let i = 0; i < count; i++) {
+      const base = baseSamples[i % baseSamples.length]
+      const ext = base.name.substring(base.name.lastIndexOf('.'))
+      const nameWithoutExt = base.name.substring(0, base.name.lastIndexOf('.'))
+      const newName = `${nameWithoutExt}_#${i + 1}${ext}`
+      files.push(new File([base], newName, { type: base.type }))
+    }
+    await handleFilesSelected(files)
   }
 
   // Helper to safely update a single photo's status and progress
@@ -156,18 +180,26 @@ export function App() {
     }, 130)
 
     try {
+      // Check if user cancelled
+      if (isCancelledRef.current) {
+        updatePhoto(photo.id, { status: 'waiting', progress: 0, statusMessage: 'Pausado' })
+        return { ...photo, status: 'waiting', progress: 0 }
+      }
+
       // 2. Call Gemini API
       const analysis = await GeminiService.analyzePhoto(photo.file, {
         apiKey: settings.geminiApiKey,
         styleProfile: settings.styleProfile,
         customInstruction: settings.customInstruction,
-        imgElement: img
+        imgElement: img,
+        signal: abortControllerRef.current?.signal
       })
 
       if (tickerInterval) clearInterval(tickerInterval)
 
       // Check if user cancelled while waiting
       if (isCancelledRef.current) {
+        updatePhoto(photo.id, { status: 'waiting', progress: 0, statusMessage: 'Pausado' })
         return { ...photo, status: 'waiting', progress: 0 }
       }
 
@@ -211,10 +243,26 @@ export function App() {
         progress: 100
       }
 
+      // Record successful processing for cost monitoring
+      StorageService.recordPhotoProcessed(Boolean(analysis && !analysis.simulated))
+
       setPhotos((prev) => prev.map((p) => (p.id === photo.id ? updatedItem : p)))
       return updatedItem
     } catch (err: any) {
       if (tickerInterval) clearInterval(tickerInterval)
+
+      // Clean cancellation / abort handling
+      if (isCancelledRef.current || err.name === 'AbortError') {
+        const pausedItem: PhotoItem = {
+          ...photo,
+          status: 'waiting',
+          statusMessage: 'Pausado pelo usuário',
+          progress: 0
+        }
+        setPhotos((prev) => prev.map((p) => (p.id === photo.id ? pausedItem : p)))
+        return pausedItem
+      }
+
       console.error(`Erro ao processar foto ${photo.filename}:`, err)
       try {
         currentProgress = 85
@@ -236,6 +284,7 @@ export function App() {
           statusMessage: 'Concluído com ajustes heurísticos',
           progress: 100
         }
+        StorageService.recordPhotoProcessed(false)
         setPhotos((prev) => prev.map((p) => (p.id === photo.id ? recoveredItem : p)))
         return recoveredItem
       } catch (fallbackErr) {
@@ -259,8 +308,16 @@ export function App() {
   const handleStartProcessing = async () => {
     if (photos.length === 0 || isProcessing) return
 
+    // Verify daily limit
+    const usage = StorageService.loadUsage()
+    if (usage.dailyCount >= (settings.dailyLimit || 100)) {
+      const proceed = confirm(`Você atingiu o limite de uso diário configurado (${usage.dailyCount} / ${settings.dailyLimit || 100} fotos hoje). Deseja continuar o processamento deste lote?`)
+      if (!proceed) return
+    }
+
     setIsProcessing(true)
     isCancelledRef.current = false
+    abortControllerRef.current = new AbortController()
 
     const pendingPhotos = photos.filter((p) => p.status === 'waiting' || p.status === 'error')
     const maxConcurrency = Math.max(1, Math.min(3, settings.maxConcurrency || 2))
@@ -285,7 +342,7 @@ export function App() {
     setIsProcessing(false)
     setCurrentProcessingPhoto(null)
 
-    // Save batch to history
+    // Save batch to history with IndexedDB blob persistence
     setPhotos((currentPhotos) => {
       const completed = currentPhotos.filter((p) => p.status === 'completed').length
       if (completed > 0) {
@@ -299,8 +356,9 @@ export function App() {
           status: 'completed',
           photos: currentPhotos
         }
-        StorageService.saveBatchToHistory(batchSession)
-        setHistory(StorageService.loadHistory())
+        StorageService.saveBatchToHistory(batchSession).then(() => {
+          StorageService.loadHistoryAsync().then(setHistory)
+        })
       }
       return currentPhotos
     })
@@ -308,6 +366,7 @@ export function App() {
 
   const handleCancelProcessing = () => {
     isCancelledRef.current = true
+    abortControllerRef.current?.abort()
     setIsProcessing(false)
     setCurrentProcessingPhoto(null)
   }
@@ -457,6 +516,7 @@ export function App() {
             onRetryFailedPhotos={handleRetryFailedPhotos}
             onRemovePhoto={handleRemovePhoto}
             onAddMorePhotos={handleFilesSelected}
+            onGenerateTestBatch={handleGenerateTestBatch}
           />
         )}
       </main>

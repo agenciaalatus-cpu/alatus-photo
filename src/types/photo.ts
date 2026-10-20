@@ -96,6 +96,14 @@ export interface BatchSession {
   photos: PhotoItem[]
 }
 
+export interface UsageStats {
+  totalPhotosProcessed: number
+  totalAiAnalyses: number
+  estimatedCostUsd: number
+  dailyCount: number
+  lastActiveDate: string
+}
+
 export interface AppSettings {
   geminiApiKey: string
   styleProfile: StyleProfile
@@ -108,6 +116,8 @@ export interface AppSettings {
   deleteAfterExport: boolean
   theme: 'dark' | 'light'
   maxConcurrency: number
+  dailyLimit: number
+  adminPin?: string
 }
 
 export const DEFAULT_ADJUSTMENTS: PhotoAdjustments = {

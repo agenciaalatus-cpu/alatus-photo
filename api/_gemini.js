@@ -1,12 +1,12 @@
 import { GoogleGenAI } from '@google/genai'
 
 export const CANDIDATE_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-2.5-flash-lite',
   'gemini-flash-lite-latest',
-  'gemini-3.5-flash-lite',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.8-flash',
-  'gemini-flash-latest'
+  'gemini-3-flash-preview',
+  'gemini-2.5-pro'
 ]
 
 export async function generateWithFallback(ai, requestConfig) {

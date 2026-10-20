@@ -6,6 +6,7 @@ export interface AnalyzeOptions {
   styleProfile?: StyleProfile
   customInstruction?: string
   imgElement?: HTMLImageElement
+  signal?: AbortSignal
 }
 
 /**
@@ -110,15 +111,16 @@ export class GeminiService {
   public static async analyzePhoto(
     file: File,
     options: AnalyzeOptions = {},
-    retryCount: number = 0
+    _retryCount: number = 0
   ): Promise<AIAnalysisResult> {
-    const { apiKey, styleProfile = 'natural', customInstruction = '', imgElement } = options
+    const { apiKey, styleProfile = 'natural', customInstruction = '', imgElement, signal } = options
 
     try {
       const { base64, mimeType } = await fileToBase64(file)
 
       const response = await fetch('/api/analyze-photo', {
         method: 'POST',
+        signal,
         headers: {
           'Content-Type': 'application/json',
           ...(apiKey ? { 'x-gemini-key': apiKey } : {})
@@ -136,17 +138,21 @@ export class GeminiService {
       const data = await response.json()
 
       if (!response.ok) {
+        if (signal?.aborted) {
+          throw new DOMException('Requisição cancelada pelo usuário', 'AbortError')
+        }
+
         // If quota exhausted (429), server error (500), or no API key, gracefully fallback to local intelligent engine
         if (imgElement) {
           console.warn('API Gemini retornou status não-200. Ativando motor de edição local heurístico:', data.error || response.status)
           const fallbackAnalysis = await analyzeImageLocally(imgElement, styleProfile, customInstruction)
-          if (data.isQuota || data.error?.includes('RESOURCE_EXHAUSTED') || data.error?.includes('quota') || response.status === 429) {
+          if (data.isQuota || data.errorCode === 'QUOTA_EXCEEDED' || data.error?.includes('RESOURCE_EXHAUSTED') || data.error?.includes('quota') || response.status === 429) {
             fallbackAnalysis.reasoning_summary = `[Modo Heurístico Inteligente]: ${fallbackAnalysis.reasoning_summary}`
           }
           return fallbackAnalysis
         }
 
-        if (data.error === 'NO_API_KEY') {
+        if (data.errorCode === 'NO_API_KEY' || data.error === 'NO_API_KEY') {
           throw new Error('Chave Gemini API não informada. Configure em Configurações.')
         }
 
@@ -156,6 +162,10 @@ export class GeminiService {
       // Validate the structured JSON
       return validateAIAnalysis(data.analysis)
     } catch (err: any) {
+      if (err.name === 'AbortError' || signal?.aborted) {
+        throw err
+      }
+
       // If error occurs and we have an image element, fallback gracefully so editing is never blocked
       if (imgElement) {
         console.warn('Erro na requisição Gemini, fallback para motor heurístico:', err.message)
