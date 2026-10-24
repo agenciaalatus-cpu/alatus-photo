@@ -43,6 +43,20 @@
   --gold-glow: rgba(217, 155, 0, 0.1);
 }
 
+/* Logo Theme Adaptation */
+.alatus-logo-dark {
+  display: block;
+}
+.alatus-logo-light {
+  display: none;
+}
+.light-theme .alatus-logo-dark {
+  display: none;
+}
+.light-theme .alatus-logo-light {
+  display: block;
+}
+
 * {
   box-sizing: border-box;
 }
