@@ -121,6 +121,7 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgElementRef = useRef<HTMLImageElement | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const imageWrapperRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const filmstripRef = useRef<HTMLDivElement>(null)
 
@@ -258,14 +259,34 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
     }
   }
 
-  // Interactive Split Comparison Drag
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDraggingSplit || !containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const percent = Math.max(0, Math.min(100, (x / rect.width) * 100))
-    setSplitPos(percent)
-  }
+  // Interactive Split Comparison Drag locked to image boundary with global pointer capture
+  useEffect(() => {
+    if (!isDraggingSplit) return
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const targetEl = imageWrapperRef.current || containerRef.current
+      if (!targetEl) return
+      const rect = targetEl.getBoundingClientRect()
+      if (rect.width <= 0) return
+      const x = e.clientX - rect.left
+      const percent = Math.max(0, Math.min(100, (x / rect.width) * 100))
+      setSplitPos(percent)
+    }
+
+    const handlePointerUp = () => {
+      setIsDraggingSplit(false)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [isDraggingSplit])
 
   // Batch progress computation
   const totalPhotos = photos.length
@@ -547,7 +568,6 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
         {/* CENTER: LARGE PHOTOGRAPHY VIEWPORT (Occupies maximum screen space) */}
         <div 
           ref={containerRef}
-          onMouseMove={handleMouseMove}
           className="flex-1 relative bg-[#0D131A] overflow-hidden flex items-center justify-center select-none"
         >
           {/* Zoomable Container */}
@@ -555,38 +575,69 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
             className="relative transition-transform duration-150 ease-out flex items-center justify-center max-w-full max-h-full p-4"
             style={{ transform: `scale(${zoomLevel})` }}
           >
-            {/* 1. Underlying Original Image (Left side of split) */}
-            <img
-              src={selectedPhoto.originalUrl}
-              alt="Original"
-              className="max-h-[72vh] max-w-[75vw] object-contain pointer-events-none rounded-lg shadow-2xl"
-            />
+            {/* Image & Canvas Boundary Wrapper */}
+            <div 
+              ref={imageWrapperRef}
+              className="relative inline-block select-none rounded-lg shadow-2xl overflow-hidden max-h-[72vh] max-w-[75vw]"
+            >
+              {/* 1. Underlying Original Image (Left side of split: Antes) */}
+              <img
+                src={selectedPhoto.originalUrl}
+                alt="Original"
+                className="block max-h-[72vh] max-w-[75vw] object-contain pointer-events-none rounded-lg"
+                draggable={false}
+              />
 
-            {/* 2. Top Canvas with Photographic Adjustments (Right side of split, clipped) */}
-            {!isHoldingOriginal && (
-              <div
-                className="absolute inset-0 overflow-hidden pointer-events-none p-4"
-                style={{ clipPath: `inset(0 0 0 ${splitPos}%)` }}
-              >
-                <canvas
-                  ref={canvasRef}
-                  className="w-full h-full object-contain pointer-events-none rounded-lg"
-                />
-              </div>
-            )}
-
-            {/* Split Handle Line (Only when not holding original) */}
-            {!isHoldingOriginal && (
-              <div
-                className="absolute top-4 bottom-4 w-[2px] bg-white shadow-[0_0_10px_rgba(0,0,0,0.8)] cursor-ew-resize pointer-events-auto z-20"
-                style={{ left: `${splitPos}%` }}
-                onMouseDown={() => setIsDraggingSplit(true)}
-              >
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white text-[#101820] font-black text-[10px] flex items-center justify-center shadow-xl border border-black/20 cursor-ew-resize select-none">
-                  ⇄
+              {/* 2. Top Canvas with Photographic Adjustments (Right side of split: Depois, clipped) */}
+              {!isHoldingOriginal && (
+                <div
+                  className="absolute inset-0 overflow-hidden pointer-events-none rounded-lg"
+                  style={{ clipPath: `inset(0 0 0 ${splitPos}%)` }}
+                >
+                  <canvas
+                    ref={canvasRef}
+                    className="block w-full h-full object-contain pointer-events-none rounded-lg"
+                  />
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Split Handle Line (Only when not holding original) */}
+              {!isHoldingOriginal && (
+                <div
+                  className="absolute top-0 bottom-0 w-1 -ml-0.5 bg-white shadow-[0_0_12px_rgba(0,0,0,0.9)] cursor-ew-resize pointer-events-auto z-20 flex items-center justify-center touch-none select-none group"
+                  style={{ left: `${splitPos}%` }}
+                  onPointerDown={(e) => {
+                    e.preventDefault()
+                    setIsDraggingSplit(true)
+                  }}
+                >
+                  <div className="w-7 h-7 rounded-full bg-white text-[#101820] font-black text-[10px] flex items-center justify-center shadow-xl border border-black/20 cursor-ew-resize select-none transform transition-transform group-hover:scale-115 active:scale-95">
+                    ⇄
+                  </div>
+                </div>
+              )}
+
+              {/* Floating Antes / Depois Labels on Image */}
+              {!isHoldingOriginal && (
+                <>
+                  <div
+                    className={`absolute bottom-3 left-3 px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white tracking-widest pointer-events-none transition-opacity ${
+                      splitPos < 10 ? 'opacity-0' : 'opacity-100'
+                    }`}
+                  >
+                    ANTES
+                  </div>
+                  <div
+                    className={`absolute bottom-3 right-3 px-2 py-0.5 rounded-lg bg-[#00509E]/85 backdrop-blur-md border border-[#FFC72C]/40 text-[10px] font-bold text-white tracking-widest pointer-events-none flex items-center gap-1 transition-opacity ${
+                      splitPos > 90 ? 'opacity-0' : 'opacity-100'
+                    }`}
+                  >
+                    <Sparkles className="w-2.5 h-2.5 text-[#FFC72C]" />
+                    DEPOIS
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Viewport Floating Controls: Zoom & Split Quick-Toggles */}
@@ -612,20 +663,31 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
             <div className="w-[1px] h-3.5 bg-[var(--border-color)] mx-0.5" />
 
             <button
-              onClick={() => setSplitPos(50)}
-              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                splitPos === 50 ? 'bg-[#00509E] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              50/50
-            </button>
-            <button
               onClick={() => setSplitPos(100)}
               className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
                 splitPos === 100 ? 'bg-[#00509E] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
+              title="Exibir 100% foto original (Antes)"
             >
-              Apenas Revelada
+              Antes
+            </button>
+            <button
+              onClick={() => setSplitPos(50)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                splitPos === 50 ? 'bg-[#00509E] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              title="Divisão 50% Antes e 50% Depois"
+            >
+              50/50
+            </button>
+            <button
+              onClick={() => setSplitPos(0)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                splitPos === 0 ? 'bg-[#00509E] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              title="Exibir 100% foto editada (Depois)"
+            >
+              Depois
             </button>
           </div>
 
