@@ -7,6 +7,7 @@ import { ExportModal } from './components/ExportModal'
 import { DetailEditorModal } from './components/DetailEditorModal'
 import { SettingsModal } from './components/SettingsModal'
 import { HistoryModal } from './components/HistoryModal'
+import { DuplicateDetectionModal } from './components/DuplicateDetectionModal'
 import { 
   PhotoItem, 
   AppSettings, 
@@ -19,7 +20,7 @@ import { GeminiService } from './services/geminiService'
 import { analyzeImageLocally } from './services/imageAnalysisService'
 import { ImageEditingService } from './services/imageEditingService'
 import { ExportService, ExportProgress } from './services/exportService'
-import { createSamplePhotoFiles } from './utils/samplePhotos'
+import { createSamplePhotoFiles, createSampleDuplicatesBatch } from './utils/samplePhotos'
 
 export function App() {
   const [settings, setSettings] = useState<AppSettings>(() => StorageService.loadSettings())
@@ -33,6 +34,8 @@ export function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false)
@@ -418,6 +421,40 @@ export function App() {
     }
   }
 
+  // Remove duplicate photos keeping the best photo in each group
+  const handleRemoveDuplicates = (photoIdsToRemove: string[]) => {
+    if (photoIdsToRemove.length === 0) return
+
+    setPhotos((prev) => {
+      const remaining: PhotoItem[] = []
+      for (const p of prev) {
+        if (photoIdsToRemove.includes(p.id)) {
+          if (p.originalUrl) URL.revokeObjectURL(p.originalUrl)
+        } else {
+          remaining.push(p)
+        }
+      }
+
+      if (selectedPhoto && photoIdsToRemove.includes(selectedPhoto.id)) {
+        setSelectedPhoto(remaining.length > 0 ? remaining[0] : null)
+      }
+
+      return remaining
+    })
+
+    setToastMessage(
+      `${photoIdsToRemove.length} ${
+        photoIdsToRemove.length === 1 ? 'foto duplicada removida' : 'fotos duplicadas removidas'
+      }. As melhores fotos foram mantidas com sucesso!`
+    )
+    setTimeout(() => setToastMessage(null), 4500)
+  }
+
+  const handleLoadDuplicateSamples = async () => {
+    const sampleFiles = await createSampleDuplicatesBatch()
+    await handleFilesSelected(sampleFiles)
+  }
+
   // Apply current photo's adjustments across all batch photos (Requirement 3)
   const handleApplyAdjustmentsToBatch = (newAdjustments: PhotoAdjustments) => {
     setPhotos((prev) =>
@@ -553,6 +590,7 @@ export function App() {
             onRemovePhoto={handleRemovePhoto}
             onRetryPhoto={handleRetryPhoto}
             onClearBatch={handleClearBatch}
+            onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)}
           />
         ) : (
           <div className="pb-16 overflow-y-auto">
@@ -578,6 +616,8 @@ export function App() {
               onRemovePhoto={handleRemovePhoto}
               onAddMorePhotos={handleFilesSelected}
               onGenerateTestBatch={handleGenerateTestBatch}
+              onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)}
+              onLoadDuplicateSamples={handleLoadDuplicateSamples}
             />
           </div>
         )}
@@ -596,6 +636,14 @@ export function App() {
           )
           setTimeout(() => handleStartProcessing(), 100)
         }}
+      />
+
+      {/* Duplicate & Burst Detection Modal (Keeps the best photo) */}
+      <DuplicateDetectionModal
+        isOpen={isDuplicateModalOpen}
+        onClose={() => setIsDuplicateModalOpen(false)}
+        photos={photos}
+        onRemoveDuplicates={handleRemoveDuplicates}
       />
 
       {/* Detail Photo Inspector & Split Comparison Modal */}
@@ -639,6 +687,18 @@ export function App() {
           setHistory([])
         }}
       />
+
+      {/* Toast Notification Alert */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-60 max-w-md p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[#00509E] text-white shadow-2xl shadow-[#00509E]/30 flex items-center gap-3 animate-fade-in">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            ✓
+          </div>
+          <p className="text-xs font-semibold leading-relaxed">
+            {toastMessage}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

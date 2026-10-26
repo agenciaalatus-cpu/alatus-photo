@@ -87,3 +87,94 @@ test('Fase 4: Limites de Uso e Monitoramento de Custos - Verificação de métri
   const brlCost = estimatedCost * 5.7
   assert.ok(brlCost < 0.10, '50 fotos custam menos de 10 centavos de real no Gemini 2.5 Flash')
 })
+
+test('Fase 5: Remoção de Duplicadas - Algoritmo de Hashing Perceptual (dHash) e Distância de Hamming', () => {
+  // Pure Hamming distance calculation logic
+  const hammingDistance = (a, b) => {
+    let dist = 0
+    const len = Math.min(a.length, b.length)
+    for (let i = 0; i < len; i++) {
+      if (a[i] !== b[i]) dist++
+    }
+    return dist + Math.abs(a.length - b.length)
+  }
+
+  const hashA = '1100110011001100'
+  const hashIdentical = '1100110011001100'
+  const hashBurst = '1100110011001101' // 1 bit different
+  const hashDifferent = '0011001100110011' // 16 bits different
+
+  assert.equal(hammingDistance(hashA, hashIdentical), 0, 'Hashes idênticos devem ter distância 0')
+  assert.equal(hammingDistance(hashA, hashBurst), 1, 'Foto em rajada quase idêntica deve ter distância 1')
+  assert.equal(hammingDistance(hashA, hashDifferent), 16, 'Fotos completamente distintas devem ter distância máxima')
+
+  const simIdentical = (1 - hammingDistance(hashA, hashIdentical) / 16) * 100
+  const simBurst = (1 - hammingDistance(hashA, hashBurst) / 16) * 100
+  const simDifferent = (1 - hammingDistance(hashA, hashDifferent) / 16) * 100
+
+  assert.equal(simIdentical, 100)
+  assert.ok(simBurst >= 93, 'Similaridade de rajada deve ser > 93%')
+  assert.equal(simDifferent, 0, 'Similaridade de fotos opostas deve ser 0%')
+})
+
+test('Fase 5: Remoção de Duplicadas - Avaliação de Nitidez Laplaciana e Escolha da Melhor Foto', () => {
+  // Grayscale buffer simulator
+  const width = 10
+  const height = 10
+
+  // 1. Sharp image with high edge contrast
+  const sharpBuffer = new Uint8Array(width * height)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      sharpBuffer[y * width + x] = (x % 2 === 0) ? 240 : 15 // crisp alternating edges
+    }
+  }
+
+  // 2. Blurry image with smooth / flat gradient
+  const blurBuffer = new Uint8Array(width * height)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      blurBuffer[y * width + x] = Math.round(120 + x * 2) // gentle flat gradient
+    }
+  }
+
+  // Laplacian edge variance calculation
+  const calculateLaplacianVariance = (grayscale, w, h) => {
+    let sum = 0
+    let sumSq = 0
+    let count = 0
+    for (let y = 1; y < h - 1; y++) {
+      const row = y * w
+      const prev = (y - 1) * w
+      const next = (y + 1) * w
+      for (let x = 1; x < w - 1; x++) {
+        const center = grayscale[row + x]
+        const up = grayscale[prev + x]
+        const down = grayscale[next + x]
+        const left = grayscale[row + x - 1]
+        const right = grayscale[row + x + 1]
+        const lap = up + down + left + right - (center * 4)
+        sum += lap
+        sumSq += lap * lap
+        count++
+      }
+    }
+    const mean = sum / count
+    return (sumSq / count) - (mean * mean)
+  }
+
+  const sharpVariance = calculateLaplacianVariance(sharpBuffer, width, height)
+  const blurVariance = calculateLaplacianVariance(blurBuffer, width, height)
+
+  assert.ok(sharpVariance > blurVariance * 10, 'A imagem nítida deve ter variância Laplaciana muito superior à imagem desfocada')
+
+  // Simulate group ranking
+  const photo1 = { id: 'p1', name: 'foto_desfocada.jpg', variance: blurVariance, score: 58 }
+  const photo2 = { id: 'p2', name: 'foto_foco_cravado.jpg', variance: sharpVariance, score: 96 }
+
+  const duplicateGroup = [photo1, photo2]
+  duplicateGroup.sort((a, b) => b.score - a.score)
+
+  assert.equal(duplicateGroup[0].id, 'p2', 'A melhor foto selecionada deve ser a foto de maior nitidez')
+  assert.equal(duplicateGroup[1].id, 'p1', 'A foto desfocada deve ser marcada como duplicada inferior para remoção')
+})

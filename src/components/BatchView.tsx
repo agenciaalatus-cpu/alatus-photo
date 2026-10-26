@@ -41,6 +41,8 @@ interface BatchViewProps {
   onRemovePhoto: (photoId: string) => void
   onAddMorePhotos: (files: File[]) => void
   onGenerateTestBatch?: (count: number) => void
+  onOpenDuplicateModal?: () => void
+  onLoadDuplicateSamples?: () => void
 }
 
 export const BatchView: React.FC<BatchViewProps> = ({
@@ -61,7 +63,9 @@ export const BatchView: React.FC<BatchViewProps> = ({
   onRetryFailedPhotos,
   onRemovePhoto,
   onAddMorePhotos,
-  onGenerateTestBatch
+  onGenerateTestBatch,
+  onOpenDuplicateModal,
+  onLoadDuplicateSamples
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [isComparingAfter, setIsComparingAfter] = useState(true)
@@ -155,39 +159,58 @@ export const BatchView: React.FC<BatchViewProps> = ({
               <span>Adicionar Mais Fotos</span>
             </button>
 
-            {/* Test Batch Generator Quick Buttons (Fase 3) */}
-            {onGenerateTestBatch && (
-              <div className="hidden sm:flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] text-xs">
-                <span className="text-[10px] text-[var(--text-muted)] px-1.5 font-bold uppercase tracking-wider">Testar Lote:</span>
-                <button
-                  type="button"
-                  onClick={() => onGenerateTestBatch(4)}
-                  disabled={isProcessing}
-                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
-                  title="Carregar 4 fotos de teste (Pequeno)"
-                >
-                  4 fotos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onGenerateTestBatch(12)}
-                  disabled={isProcessing}
-                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
-                  title="Carregar 12 fotos de teste (Médio)"
-                >
-                  12 fotos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onGenerateTestBatch(24)}
-                  disabled={isProcessing}
-                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
-                  title="Carregar 24 fotos de teste (Grande)"
-                >
-                  24 fotos
-                </button>
-              </div>
+            {/* Detect & Remove Duplicates (keeping the best photo) */}
+            {onOpenDuplicateModal && (
+              <button
+                type="button"
+                onClick={onOpenDuplicateModal}
+                disabled={isProcessing || photos.length < 2}
+                className="px-3.5 py-2.5 rounded-xl bg-[var(--bg-elevated)] hover:bg-[#00509E] hover:text-white border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] transition-all flex items-center gap-2 disabled:opacity-40 shadow-sm"
+                title="Detectar e remover fotos duplicadas e em rajada mantendo a melhor foto"
+              >
+                <Layers className="w-4 h-4 text-[#FFC72C]" />
+                <span>Remover Duplicadas</span>
+              </button>
             )}
+
+            {/* Test Batch Generator Quick Buttons (Fase 3 & Duplicadas) */}
+            <div className="hidden sm:flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] text-xs">
+              <span className="text-[10px] text-[var(--text-muted)] px-1.5 font-bold uppercase tracking-wider">Testar:</span>
+              {onGenerateTestBatch && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onGenerateTestBatch(4)}
+                    disabled={isProcessing}
+                    className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
+                    title="Carregar 4 fotos de teste (Pequeno)"
+                  >
+                    4 fotos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onGenerateTestBatch(12)}
+                    disabled={isProcessing}
+                    className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-all"
+                    title="Carregar 12 fotos de teste (Médio)"
+                  >
+                    12 fotos
+                  </button>
+                </>
+              )}
+              {onLoadDuplicateSamples && (
+                <button
+                  type="button"
+                  onClick={onLoadDuplicateSamples}
+                  disabled={isProcessing}
+                  className="px-2 py-1 rounded-lg text-[11px] font-bold text-[#FFC72C] hover:bg-[#FFC72C]/15 transition-all border border-[#FFC72C]/30 flex items-center gap-1"
+                  title="Carregar fotos de teste com duplicadas idênticas e rajadas com variações de foco"
+                >
+                  <Sparkles className="w-3 h-3 text-[#FFC72C]" />
+                  <span>Testar Duplicadas</span>
+                </button>
+              )}
+            </div>
 
             {isProcessing ? (
               <button

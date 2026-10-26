@@ -65,6 +65,7 @@ interface StudioEditorProps {
   onRemovePhoto: (photoId: string) => void
   onRetryPhoto: (photoId: string) => void
   onClearBatch: () => void
+  onOpenDuplicateModal?: () => void
 }
 
 export const StudioEditor: React.FC<StudioEditorProps> = ({
@@ -84,7 +85,8 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
   onAddMorePhotos,
   onRemovePhoto,
   onRetryPhoto,
-  onClearBatch
+  onClearBatch,
+  onOpenDuplicateModal
 }) => {
   // Local active adjustments
   const [adjustments, setAdjustments] = useState<PhotoAdjustments>({ ...selectedPhoto.userAdjustments })
@@ -419,6 +421,19 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
             <Copy className="w-3.5 h-3.5 text-[#FFC72C]" />
             <span>Aplicar ao Lote</span>
           </button>
+
+          {/* Remove Duplicates Action */}
+          {onOpenDuplicateModal && (
+            <button
+              onClick={onOpenDuplicateModal}
+              disabled={isProcessing || photos.length < 2}
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] hover:bg-[#00509E] hover:text-white border border-[var(--border-color)] text-xs font-bold text-[var(--text-primary)] transition-all shadow-sm disabled:opacity-40"
+              title="Detectar e remover fotos duplicadas mantendo automaticamente as melhores"
+            >
+              <Layers className="w-3.5 h-3.5 text-[#FFC72C]" />
+              <span>Duplicadas</span>
+            </button>
+          )}
 
           {/* Start/Pause Processing Button */}
           {isProcessing ? (

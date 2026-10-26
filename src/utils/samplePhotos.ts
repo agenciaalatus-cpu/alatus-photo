@@ -327,3 +327,46 @@ export async function createSamplePhotoFiles(selectedIndices?: number[]): Promis
 
   return files
 }
+
+/**
+ * Creates a specialized sample photo batch containing duplicate copies and burst shots with varying sharpness
+ * Perfect for demonstrating and testing the duplicate detection and "keep best photo" algorithm.
+ */
+export async function createSampleDuplicatesBatch(): Promise<File[]> {
+  const baseFiles = await createSamplePhotoFiles([0, 1, 4])
+  const resultFiles: File[] = []
+
+  if (baseFiles.length >= 3) {
+    // 1. Group 1: Exact Duplicates (Photo 0)
+    resultFiles.push(baseFiles[0])
+    resultFiles.push(new File([baseFiles[0]], 'IMG_01_Retrato_Pele_Clara_COPIA_DUPLICADA.jpg', { type: 'image/jpeg' }))
+
+    // 2. Group 2: Burst Shot with sharpness variation (Photo 1 sharp vs Photo 1 slightly blurred)
+    resultFiles.push(baseFiles[1])
+
+    // Generate a softer/blurred burst version of Photo 1
+    const sampleDef = SAMPLE_PHOTO_CATALOG[1]
+    const blurCanvas = document.createElement('canvas')
+    blurCanvas.width = sampleDef.width
+    blurCanvas.height = sampleDef.height
+    const blurCtx = blurCanvas.getContext('2d')
+    if (blurCtx) {
+      // Draw base
+      sampleDef.draw(blurCtx, sampleDef.width, sampleDef.height)
+      // Apply slight blur filter simulation (slight motion blur)
+      blurCtx.fillStyle = 'rgba(255, 255, 255, 0.04)'
+      blurCtx.fillRect(0, 0, sampleDef.width, sampleDef.height)
+      const blurBlob = await new Promise<Blob | null>((resolve) => {
+        blurCanvas.toBlob((b) => resolve(b), 'image/jpeg', 0.82)
+      })
+      if (blurBlob) {
+        resultFiles.push(new File([blurBlob], 'IMG_02_Retrato_Pele_Morena_RAJADA_DESFOQUE.jpg', { type: 'image/jpeg' }))
+      }
+    }
+
+    // 3. Unique photo (no duplicate)
+    resultFiles.push(baseFiles[2])
+  }
+
+  return resultFiles
+}
